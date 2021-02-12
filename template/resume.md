@@ -1,4 +1,5 @@
 ##Resume
-Name: Hao Chen
-Email address: chen960216##gmail.com (replace \#\# to at)
+Name: Yuan GAO
+
+Email address: hjczgaoyuan@gmail.com
 
