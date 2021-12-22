@@ -16,4 +16,5 @@ redirect_from:
 ## Contact
 * Location
   Interdisciplinary Research Building, 1-2 Machikaneyamacho, Toyonaka, Osaka 560-0043
-* 
+* E-mail
+  hjczgaoyuan@gmail.com
