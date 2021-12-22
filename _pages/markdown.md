@@ -13,4 +13,7 @@ redirect_from:
 * [Department of Enginerring Science](https://www.es.osaka-u.ac.jp/ja/)
 * [Osaka University](https://www.osaka-u.ac.jp/ja)
 
-## Location
+## Contact
+* Location
+  Interdisciplinary Research Building, 1-2 Machikaneyamacho, Toyonaka, Osaka 560-0043
+* 
