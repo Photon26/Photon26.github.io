@@ -20,4 +20,4 @@ redirect_from:
   * hjczgaoyuan@gmail.com
 
 ## Past Visitors
-<div style="display:inline-block;width:270px;"><script type="text/javascript" src="//rf.revolvermaps.com/0/0/7.js?i=1tbxe9zedcg&amp;m=0&amp;c=007eff&amp;cr1=00ff6c&amp;br=2&amp;sx=0&amp;ds=70" async="async"></script></div>
+<div style="display:inline-block;width:500px;"><script type="text/javascript" src="//rf.revolvermaps.com/0/0/6.js?i=5trg7d4uq05&amp;m=7&amp;c=e63100&amp;cr1=ffffff&amp;f=arial&amp;l=0&amp;bv=90&amp;lx=-420&amp;ly=420&amp;hi=20&amp;he=7&amp;hc=a8ddff&amp;rs=80" async="async"></script></div>
