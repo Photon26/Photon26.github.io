@@ -9,9 +9,8 @@ In applying our sensor, we are able to get comprehensive force information inclu
 during the robot grasping or motion planning. On the other hand, shape and texture of the contacting surface can be constructed 
 using the method called photometric stereo. This enables us to realize more complicated robotic tasks such as tape manipulation.
 
-* Performance of the Sensor 
-  * [Video](https://youtu.be/8iJOCnbx6as)
-
 There is a [guide](https://www.notion.so/How-to-Make-a-Gelsight-Sensor-c051c668869e445690964c401197c212) for making the sensor.
 
 The code for applying the sensor is [here](https://github.com/Photon26/Gelsight_controller).
+
+* Performance of the Sensor: [Video](https://youtu.be/8iJOCnbx6as)
