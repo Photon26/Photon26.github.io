@@ -9,13 +9,4 @@ In applying our sensor, we are able to get comprehensive force information inclu
 during the robot grasping or motion planning. On the other hand, shape and texture of the contacting surface can be constructed 
 using the method called photometric stereo. This enables us to realize more complicated robotic tasks such as tape manipulation.
 
-<iframe
-src="https://youtu.be/8iJOCnbx6as"
-scrolling="no"
-border="0"
-frameborder="no"
-framespacing="0"
-allowfullscreen="true"
-height=375
-width=500>
-</iframe>
+<iframe width="500" height="375" src="https://youtu.be/8iJOCnbx6as" frameborder="0" allowfullscreen></iframe>
