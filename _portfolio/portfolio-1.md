@@ -12,3 +12,6 @@ using the method called photometric stereo. This enables us to realize more comp
 * Performance of the Sensor 
   * [Video](https://youtu.be/8iJOCnbx6as)
 
+There is a [guide](https://www.notion.so/How-to-Make-a-Gelsight-Sensor-c051c668869e445690964c401197c212) for making the sensor.
+
+The code for applying the sensor is [here](https://github.com/Photon26/Gelsight_controller).
