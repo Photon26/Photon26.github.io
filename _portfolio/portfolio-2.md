@@ -4,4 +4,5 @@ excerpt: "We apply the sensor to perform tape manipulation. <br/><img src='/imag
 collection: portfolio
 ---
 
+
 * A short demo of tape manipulation process: [Video](https://www.youtube.com/watch?v=rWerUJEwZQ8)

@@ -1,6 +1,6 @@
 ---
 title: "An Osaka Version of Gelsight Sensor"
-excerpt: "A vision-based sensor based on Gelsight sensor. 1<br/><img src='/images/1.png'>"
+excerpt: "A vision-based sensor based on Gelsight sensor. <br/><img src='/images/1.png'>"
 collection: portfolio
 ---
 
