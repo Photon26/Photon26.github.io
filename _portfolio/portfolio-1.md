@@ -1,5 +1,5 @@
 ---
-title: "An Osaka Version of Gelsight Sensor"
+title: "A Gelsight Sensor Design and Fabricated by Me"
 excerpt: "A vision-based sensor based on Gelsight sensor. <br/><img src='/images/1.png'>"
 collection: portfolio
 ---
