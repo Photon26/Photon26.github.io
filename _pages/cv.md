@@ -13,7 +13,7 @@ Education
 ======
 * B.S. in Physics, Zhejiang University, 2018
 * M.S. in System Innovation, Osaka University, 2021
-* Ph.D in System Innovation, Osaka University, 2024 (expected)
+* Ph.D in System Innovation, Osaka University, 2025 (expected)
 
   
 Skills
