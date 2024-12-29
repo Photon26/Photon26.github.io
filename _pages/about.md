@@ -17,5 +17,5 @@ I earned my bachelor’s degree in [CHU KO CHEN Honors College](http://ckc.zju.e
 
 
 ## Past Visitors
-<div style="display:inline-block;width:500px;"><script type="text/javascript" src="//rf.revolvermaps.com/0/0/6.js?i=5trg7d4uq05&amp;m=7&amp;c=e63100&amp;cr1=ffffff&amp;f=arial&amp;l=0&amp;bv=90&amp;lx=-420&amp;ly=420&amp;hi=20&amp;he=7&amp;hc=a8ddff&amp;rs=80" async="async"></script></div>
+<div style="display:inline-block;width:500px;"><script type="text/javascript" src="https://cdn.livetrafficfeed.com/static/mapjs/live.v2.js?rat=86&typ=8&ro=0&tz=Asia%2FTokyo"></script><noscript id="LTF_mapjs_website"><a href="http://livetrafficfeed.com/live-maps-visitor">Maps Visitor</a></noscript></div>
 
