@@ -1,7 +1,7 @@
 ---
 title: "In-Hand Pose Estimation Using Hand-Mounted RGB Cameras and Visuotactile Sensors"
 excerpt: "A method to estimate the 6D pose of an object grasped by a robot hand using RGB cameras 
-mounted on the palm and visuotactile sensors installed at the fingertips. <br/><img src='/images/abstract.png'>"
+mounted on the palm and visuotactile sensors installed at the fingertips. <br/><img src='/images/paper1.jpg'>"
 collection: portfolio
 ---
 
