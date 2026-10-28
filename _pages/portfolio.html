@@ -7,8 +7,17 @@ author_profile: true
 
 {% include base_path %}
 
+<p class="lead">My doctoral research produced three generations of compact vision-based tactile sensors, each attacking a different bottleneck: the illumination, the lens, and the narrow field of view of a thin sensor. Before that, I built GelSight-type sensors and used them for in-hand pose estimation with vision and touch.</p>
 
-{% for post in site.portfolio %}
-  {% include archive-single.html %}
+{% assign projects = site.portfolio | sort: "order" %}
+{% for p in projects %}
+<article class="proj">
+  <a class="proj-thumb" href="{{ base_path }}{{ p.url }}"><img src="{{ base_path }}/images/research/{{ p.thumb }}" alt="{{ p.thumb_alt }}"></a>
+  <div class="proj-body">
+    <p class="proj-meta">{{ p.period }}{% if p.venue %} · {{ p.venue }}{% endif %}</p>
+    <h2 class="proj-title"><a href="{{ base_path }}{{ p.url }}">{{ p.title }}</a></h2>
+    <p class="proj-result">{{ p.result }}</p>
+    <p class="proj-links"><a href="{{ base_path }}{{ p.url }}">Details</a>{% if p.paper %}<a href="{{ p.paper }}">Paper</a>{% endif %}{% if p.video %}<a href="{{ p.video }}">Video</a>{% endif %}{% if p.code %}<a href="{{ p.code }}">Code</a>{% endif %}</p>
+  </div>
+</article>
 {% endfor %}
-

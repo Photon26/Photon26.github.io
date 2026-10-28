@@ -1,21 +1,29 @@
 ---
-title: "Development of a Miniature Photometric Vision-Based Tactile Sensor"
-excerpt: "Improved vision-based tactile sensor under structural optimization with a miniatured size. <br/><img src='/images/teaser.jpg'>"
+title: "Folded optics and fluorescent illumination"
 collection: portfolio
+order: 3
+period: "2024"
+venue: "IEEE Sensors Journal · RSJ Award"
+thumb: miniature-thumb.jpg
+thumb_alt: "Miniature tactile sensor held between two fingers"
+result: "44 × 16 × 14 mm, parts about US$18, small enough to mount two on a parallel gripper."
+paper: "https://doi.org/10.1109/JSEN.2024.3452768"
+excerpt: "A miniature photometric vision-based tactile sensor built with optimized folded optics and fluorescent illumination, 44 × 16 × 14 mm."
 ---
 
-This study presents the design of a miniature Vision-based Tactile Sensor (VTS) for compact integration with robotic grippers. 
-VTSs have become a significant research area in the past decade known for their high-resolution capabilities. 
-However, a common challenge faced by the VTS is their large size, which significantly limits the application scenarios. 
-To solve this problem, we in this paper formulate the sensor structure design as an optimization problem constrained by the limitations of the camera and acrylic board and develop an optimally small sensor structure by solving the problem. 
-Meanwhile, we use white LED lights paired with multi-color fluorescent pigment paintings for illumination. 
-The pigment paintings were a more efficient and compact replacement for the traditional multi-color LED lights. 
-The optimization, in conjunction with the pigment paintings, help reduce the sensor size while maintaining the high-resolution characteristics of VTSs. 
-The sensor has a low cost and can be easily integrated into existing robotic systems. 
-For verification, we installed two such sensors on a 2-finger parallel robotic gripper to perform various grasping tasks. 
-The results show that the sensors could satisfactorily reconstruct the depth map of the contact surface. 
-We also compared the proposed design with variations that have different lighting, camera, or mirror setups. 
-The comparison results highlighted the importance of the various components and the effectiveness of the optimization.
+<figure class="fig">
+  <img src="/images/research/miniature-overview.jpg" alt="Miniature tactile sensor in hand, its exploded design, dimensions, and two sensors on a gripper">
+  <figcaption>The sensor in hand, its components (a, b), dimensions (c), and two sensors on a parallel gripper (d).</figcaption>
+</figure>
 
+**Problem.** Vision-based tactile sensors give high-resolution contact geometry, but they are usually too large for compact grippers. Photometric stereo also needs light from three directions in three colors, which normally means a three-color LED array.
 
-[Paperlink](https://ieeexplore.ieee.org/document/10670000)
+**Approach.** I formulated the placement of the camera and mirror as an optimization problem, constrained by the required field of view and by occlusion of the light path, and solved it numerically. For illumination, I painted self-made fluorescent coatings on three sides of an acrylic light guide and excited them with white LEDs, which removed the LED array and cut the width from 20 mm to 16 mm. Per-sensor color-to-gradient lookup tables, built from reference-sphere indentation, absorb the differences in fluorescent intensity between sensors.
+
+**Result.** A 44 × 16 × 14 mm sensor with parts costing about US$18. Two of them on a two-finger parallel gripper reconstructed depth maps of the contact surface, and comparisons against variants with different lighting, camera and mirror setups showed what each component contributes.
+
+**Recognition.** This work received the 5th Excellent Research and Technology Award of The Robotics Society of Japan (2024), one of eight works selected that year.
+
+**My role.** Lead researcher and first author: optimization, optical and mechanical design, coatings and prototyping, calibration, experiments and writing.
+
+**Paper.** Y. Gao, S. Zhang, W. Wan, B. Fang, F. Sun and K. Harada, "Development of a Miniature Photometric Vision-Based Tactile Sensor," *IEEE Sensors Journal*, vol. 24, no. 20, 2024. [doi:10.1109/JSEN.2024.3452768](https://doi.org/10.1109/JSEN.2024.3452768)

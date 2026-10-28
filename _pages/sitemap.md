@@ -7,31 +7,24 @@ author_profile: true
 
 {% include base_path %}
 
-A list of all the posts and pages found on the site. For you robots out there is an [XML version]({{ base_path }}/sitemap.xml) available for digesting as well.
+<div class="page__content">
 
 <h2>Pages</h2>
-{% for post in site.pages %}
-  {% include archive-single.html %}
-{% endfor %}
+<ul>
+  <li><a href="{{ base_path }}/">About</a></li>
+  <li><a href="{{ base_path }}/portfolio/">Research</a></li>
+  <li><a href="{{ base_path }}/publications/">Publications</a></li>
+  <li><a href="{{ base_path }}/cv/">CV</a></li>
+</ul>
 
-<h2>Posts</h2>
-{% for post in site.posts %}
-  {% include archive-single.html %}
+<h2>Research projects</h2>
+<ul>
+{% assign projects = site.portfolio | sort: "order" %}
+{% for p in projects %}
+  <li><a href="{{ base_path }}{{ p.url }}">{{ p.title }}</a></li>
 {% endfor %}
+</ul>
 
-{% capture written_label %}'None'{% endcapture %}
+<p>An <a href="{{ base_path }}/sitemap.xml">XML version</a> is also available.</p>
 
-{% for collection in site.collections %}
-{% unless collection.output == false or collection.label == "posts" %}
-  {% capture label %}{{ collection.label }}{% endcapture %}
-  {% if label != written_label %}
-  <h2>{{ label }}</h2>
-  {% capture written_label %}{{ label }}{% endcapture %}
-  {% endif %}
-{% endunless %}
-{% for post in collection.docs %}
-  {% unless collection.output == false or collection.label == "posts" %}
-  {% include archive-single.html %}
-  {% endunless %}
-{% endfor %}
-{% endfor %}
+</div>

@@ -7,10 +7,10 @@
 
 # Site Settings
 locale                   : "en-US"
-title                    : "Yuan Gao / Robotic Tactile Sensing"
+title                    : "Yuan Gao"
 title_separator          : "-"
 name                     : &name "Yuan Gao"
-description              : &description "Weiwei Wan, Robotic Tactile Sensing"
+description              : &description "Yuan Gao, Ph.D. Compact vision-based tactile sensors: optical design, prototyping, calibration and robot experiments."
 url                      : https://Photon26.github.io # the base hostname & protocol for your site e.g. "https://mmistakes.github.io"
 baseurl                  : "" # the subpath of your site, e.g. "/blog"
 repository               : "Photon26/Photon26.github.io"
@@ -62,7 +62,7 @@ facebook:
   username               :
   app_id                 :
   publisher              :
-og_image                 :  # Open Graph/Twitter default site image
+og_image                 : "research/rotating-overview.jpg" # Open Graph/Twitter default site image
 # For specifying social profiles
 # - https://developers.google.com/structured-data/customize/social-profiles
 social:
@@ -73,7 +73,7 @@ social:
 
 # Analytics
 analytics:
-  provider               :  "google-universal" # false (default), "google", "google-universal", "custom"
+  provider               : false # false (default), "google", "google-universal", "custom"
   google:
     tracking_id          :
 
@@ -82,9 +82,9 @@ analytics:
 author:
   name             : "Yuan Gao"
   avatar           : "profile.jpg"
-  bio              : "PhD Candidate"
-  location         : "Rm. I301, 〒560-0043"
-  employer         : "Osaka University, Japan"
+  bio              : "Vision-based tactile sensing · Optics · Robotics"
+  location         :
+  employer         :
   email            : "hjczgaoyuan@gmail.com"
   github           : "Photon26"
 
@@ -207,8 +207,8 @@ defaults:
     values:
       layout: single
       author_profile: true
-      share: true
-      comment: true
+      share: false
+      comment: false
   # _talks
   - scope:
       path: ""

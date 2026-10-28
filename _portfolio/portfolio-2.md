@@ -1,21 +1,28 @@
 ---
-title: "In-Hand Pose Estimation Using Hand-Mounted RGB Cameras and Visuotactile Sensors"
-excerpt: "A method to estimate the 6D pose of an object grasped by a robot hand using RGB cameras 
-mounted on the palm and visuotactile sensors installed at the fingertips. <br/><img src='/images/paper1.jpg'>"
+title: "In-hand pose estimation with vision and touch"
 collection: portfolio
+order: 4
+period: "2020 – 2023"
+venue: "IEEE Access"
+thumb: inhand-thumb.jpg
+thumb_alt: "Robot hand with two palm-mounted RGB cameras and two fingertip tactile sensors"
+result: "Combining palm cameras with fingertip tactile sensors was more accurate than either alone; demonstrated pipette insertion into a transparent test tube."
+paper: "https://doi.org/10.1109/ACCESS.2023.3244552"
+video: "https://www.youtube.com/watch?v=2DNVzRrOgaw"
+excerpt: "Estimating the 6D pose of a grasped object from two palm-mounted RGB cameras and two fingertip visuotactile sensors."
 ---
 
-We propose a method to estimate the 6D pose of an object grasped by a robot hand using RGB cameras mounted on the palm and visuotactile sensors installed at the fingertips. 
-It can deal with objects made from a wide range of materials thanks to combining the two types of sensors. 
-The method allows a robot to robot to perform in-hand pose estimation while holding the object, eliminating the need for preparatory actions or particular environmental backgrounds. 
-The mechanism at the back of the method includes deep-learning-based background subtraction and denoising auto-encoder-based sensor fusion. 
-Withthe poses estimated using the proposed method, a robot controller can rectify the grasping uncertainty and adjust the robot motion to move an object toward required goals with satisfying accuracy. 
-We conduct various studies and analyses in the experimental section to understand the proposed method’s advantages and disadvantages. 
-The results demonstrate the benefits of the proposed combination and mechanism. 
-They also provide essential knowledge to readers considering using a similar configuration for estimating object poses.
+<figure class="fig">
+  <img src="/images/research/inhand-overview.jpg" alt="Pipeline diagram and robot hand with two RGB cameras and two GelSight-type sensors">
+  <figcaption>The pipeline, and the robot hand with two palm-mounted RGB cameras and two fingertip tactile sensors.</figcaption>
+</figure>
 
+**Goal.** Estimate the 6D pose of an object while the robot is holding it, without preparatory actions or special backgrounds, for objects made of a wide range of materials.
 
-Here is the [paper](https://ieeexplore.ieee.org/iel7/6287639/6514899/10043666.pdf) of the research.
+**Approach.** Two RGB cameras on the palm and two visuotactile sensors on the fingertips observe the grasped object from complementary viewpoints. Features from autoencoders trained on simulated images are matched against a pose database, coarse to fine, to estimate the object's 6D pose.
 
+**Result.** With AR-marker ground truth on a 3D-printed object, combining cameras and touch was more accurate than camera-only or touch-only settings. The system was tested on five transparent, specular and metallic objects (15 trials each, placement deviation measured with a line laser) and used to insert a pipette into a transparent test tube.
 
-* [Video](https://www.youtube.com/watch?v=2DNVzRrOgaw)
+**My role.** A laboratory team project with six authors; I am the first author. I built the fingertip sensors and mounted them on the hand, trained the networks and ran the estimation pipeline (the network code was written by a co-author), conducted all real-robot experiments and evaluation, and wrote the paper.
+
+**Paper.** Y. Gao, S. Matsuoka, W. Wan, T. Kiyokawa, K. Koyama and K. Harada, "In-Hand Pose Estimation Using Hand-Mounted RGB Cameras and Visuotactile Sensors," *IEEE Access*, vol. 11, 2023. [doi:10.1109/ACCESS.2023.3244552](https://doi.org/10.1109/ACCESS.2023.3244552) · [Video](https://www.youtube.com/watch?v=2DNVzRrOgaw)
