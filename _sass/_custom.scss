@@ -120,6 +120,75 @@ a.hl-card {
   color: #3d4651;
 }
 
+/* ---------- home: interactive demo card ---------- */
+.demo-wrap {
+  margin: 1.2em 0 2em;
+}
+
+.page__content a.demo-card,
+a.demo-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid $c-rule;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+  color: inherit;
+  text-decoration: none;
+
+  &:hover {
+    border-color: #b9c5d1;
+    box-shadow: 0 2px 12px rgba(31, 42, 55, 0.08);
+  }
+
+  img {
+    display: block;
+    flex: 0 0 auto;
+    width: 100%;
+    height: 150px;
+    margin: 0;
+    object-fit: cover;
+    border-radius: 0;
+  }
+}
+
+@media (min-width: 600px) {
+  .page__content a.demo-card,
+  a.demo-card {
+    flex-direction: row;
+
+    img {
+      width: 200px;
+      height: auto;
+      min-height: 150px;
+    }
+  }
+}
+
+.demo-title {
+  margin: 0.15em 0 0.3em;
+  font-size: 1.1em;
+  font-weight: 700;
+  line-height: 1.3;
+  color: $c-accent;
+}
+
+.demo-go {
+  margin-top: 0.5em;
+  font-size: 0.78em;
+  font-weight: 600;
+  color: $c-accent;
+}
+
+/* ---------- demo page ---------- */
+.page__content iframe.demo-frame {
+  display: block;
+  width: 100%;
+  height: 1400px;
+  margin: 1em 0 0.5em;
+  border: 0;
+}
+
 /* ---------- home: milestones ---------- */
 .page__content ul.news {
   list-style: none;

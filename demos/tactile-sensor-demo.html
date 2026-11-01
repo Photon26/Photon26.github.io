@@ -1,0 +1,1301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tactile Sensor Demo</title>
+<meta name="description" content="Interactive simulation of a GelSight-type vision-based tactile sensor: press the gel and see the tactile image, the depth map reconstructed from it, and the marker displacement field.">
+<style>
+  :root {
+    --ink: #1f2a37;
+    --text: #494e52;
+    --body: #3d4651;
+    --accent: #2a5785;
+    --muted: #66717d;
+    --rule: #e3e7ec;
+    --soft: #f5f7f9;
+    --warn: #c0612b;
+    --font: -apple-system, BlinkMacSystemFont, ".SFNSText-Regular", "San Francisco", "Roboto", "Segoe UI", "Helvetica Neue", "Lucida Grande", Arial, sans-serif;
+  }
+  html { background: #fff; color: var(--text); font-family: var(--font); font-size: 16px; line-height: 1.5; -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: #fff; }
+  *, *::before, *::after { box-sizing: border-box; }
+  button, input { font: inherit; }
+
+  .demo { max-width: 940px; margin: 0 auto; padding: 28px 16px 36px; }
+  .embedded .demo { max-width: none; padding: 2px 1px 6px; }
+
+  .demo-head { margin-bottom: 18px; }
+  .embedded .demo-head { display: none; }
+  .back { font-size: 0.8em; color: var(--accent); text-decoration: none; }
+  .back:hover { text-decoration: underline; }
+  .demo-head h1 { margin: 0.35em 0 0.3em; font-size: 1.563em; line-height: 1.25; color: var(--text); font-weight: 700; }
+  .lead { margin: 0; font-size: 1.02em; color: #3a4450; max-width: 44em; }
+
+  /* ---------- stage ---------- */
+  .stage { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  @media (min-width: 680px) { .stage { grid-template-columns: minmax(0, 1fr) 12.5em; gap: 20px; } }
+
+  .tabs { display: flex; margin-bottom: 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--soft); overflow: hidden; }
+  .tab { flex: 1 1 0; min-width: 0; padding: 7px 6px; border: 0; border-left: 1px solid var(--rule); background: transparent; color: var(--muted); font-size: 0.8em; line-height: 1.3; cursor: pointer; }
+  .tab:first-child { border-left: 0; }
+  .tab .narrow { display: none; }
+  @media (max-width: 440px) { .tab .wide { display: none; } .tab .narrow { display: inline; } }
+  .tab:hover { color: var(--ink); }
+  .tab[aria-selected="true"] { background: #fff; color: var(--accent); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); }
+  .tab:focus-visible, .shape:focus-visible, .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  .canvas-wrap { position: relative; aspect-ratio: 4 / 3; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: #8d949b; }
+  @supports not (aspect-ratio: 4 / 3) { .canvas-wrap { height: 0; padding-top: 75%; } }
+  #view { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  .canvas-wrap:focus-within { box-shadow: 0 0 0 2px rgba(42, 87, 133, 0.35); }
+  .hint { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); padding: 4px 11px; border-radius: 999px; background: rgba(31, 42, 55, 0.74); color: #fff; font-size: 0.76em; white-space: nowrap; pointer-events: none; transition: opacity 0.4s; }
+  .hint.top { top: 10px; bottom: auto; }
+  .hint.gone { opacity: 0; }
+
+  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; min-height: 30px; margin-top: 8px; font-size: 0.76em; color: var(--muted); }
+  .legend-item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+  .legend-item[hidden] { display: none; }
+  .ldot { display: inline-block; width: 9px; height: 9px; margin-right: 4px; border-radius: 50%; vertical-align: -1px; }
+  .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 5px; overflow: hidden; }
+  .seg button { padding: 2px 8px; border: 0; border-left: 1px solid var(--rule); background: #fff; color: var(--muted); font-size: 1em; cursor: pointer; }
+  .seg button:first-child { border-left: 0; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .cbar { display: inline-flex; flex-direction: column; width: 120px; }
+  .cbar-grad { display: block; height: 8px; border-radius: 2px; }
+  .cbar-lab { display: flex; justify-content: space-between; font-size: 0.92em; line-height: 1.4; font-variant-numeric: tabular-nums; }
+  .peak { font-variant-numeric: tabular-nums; }
+  .scalebar { display: inline-block; height: 0; border-top: 2px solid var(--ink); vertical-align: middle; position: relative; }
+  .scalebar::before, .scalebar::after { content: ""; position: absolute; top: -5px; width: 2px; height: 8px; background: var(--ink); }
+  .scalebar::before { left: 0; } .scalebar::after { right: 0; }
+  .ramp { display: inline-block; width: 70px; height: 8px; border-radius: 2px; vertical-align: middle; background: linear-gradient(90deg, #8fb2d6, #2a5785 50%, #c0612b); }
+
+  .readouts { display: grid; grid-template-columns: 17fr 22fr 20fr 21fr 20fr; margin: 6px 0 0; border: 1px solid var(--rule); border-radius: 6px; background: var(--soft); font-size: 16px; }
+  .readouts > div { min-width: 0; padding: 6px 8px; border-left: 1px solid var(--rule); }
+  .readouts > div:first-child { border-left: 0; }
+  @media (max-width: 539px), (min-width: 680px) and (max-width: 749px) {
+    .readouts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .readouts > div:nth-child(3n+1) { border-left: 0; }
+    .readouts > div:nth-child(n+4) { border-top: 1px solid var(--rule); }
+  }
+  .readouts dt { font-size: 0.66em; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  .readouts dd { margin: 0; font-size: 0.86em; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .readouts dd.slip { color: var(--warn); }
+
+  /* ---------- controls ---------- */
+  .controls { display: flex; flex-direction: column; gap: 16px; font-size: 0.9em; }
+  .glabel { display: block; margin-bottom: 6px; font-size: 0.68rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+  .shapes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+  @media (min-width: 680px) { .shapes { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .shape { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 2px 5px; border: 1px solid var(--rule); border-radius: 6px; background: #fff; color: var(--body); font-size: 0.72rem; line-height: 1.2; cursor: pointer; }
+  .shape svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .shape:hover { border-color: #b9c5d1; }
+  .shape[aria-checked="true"] { border-color: var(--accent); background: #f1f5f9; color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .letter-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.86em; color: var(--body); }
+  .letter-row[hidden] { display: none; }
+  .letter-row input { width: 4.5em; padding: 3px 8px; border: 1px solid #c9d1d9; border-radius: 4px; color: var(--ink); font-size: 1rem; font-weight: 600; text-align: center; }
+  .letter-row input:focus { outline: 2px solid rgba(42, 87, 133, 0.35); border-color: var(--accent); }
+  .slider { display: grid; grid-template-columns: 1fr auto; align-items: baseline; }
+  .slider + .slider { margin-top: 10px; }
+  .slider .glabel { margin: 0; }
+  .slider output { font-size: 0.82rem; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .slider input { grid-column: 1 / -1; width: 100%; margin: 4px 0 0; accent-color: var(--accent); }
+  .slider input:disabled { opacity: 0.4; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 0.86em; color: var(--body); cursor: pointer; }
+  .check input { margin: 0; accent-color: var(--accent); }
+  .tip { margin: 0; font-size: 0.78em; line-height: 1.5; color: var(--muted); }
+  kbd { padding: 0 4px; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 3px; background: #fff; font-family: inherit; font-size: 0.92em; }
+
+  /* ---------- explanation ---------- */
+  .explain { margin-top: 30px; }
+  .explain h2 { margin: 0 0 0.7em; padding-bottom: 0.5em; border-bottom: 1px solid var(--rule); font-size: 1.25em; line-height: 1.2; color: var(--text); }
+  .explain-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px 26px; }
+  @media (min-width: 680px) { .explain-grid { grid-template-columns: 290px minmax(0, 1fr); } }
+  .diagram { margin: 0; }
+  .diagram svg { display: block; width: 100%; height: auto; }
+  .diagram figcaption { margin-top: 6px; font-size: 0.78em; line-height: 1.5; color: var(--muted); }
+  .dl { font-family: var(--font); font-size: 12px; fill: #5d6875; }
+  .explain-text p, .explain-text li { margin: 0; font-size: 0.92em; line-height: 1.62; color: var(--body); }
+  .explain-text ol { margin: 0.8em 0 0; padding-left: 1.3em; }
+  .explain-text li { margin-bottom: 0.6em; padding-left: 0.15em; }
+  .explain-text li::marker { color: var(--accent); font-weight: 700; }
+  .explain-text strong { color: var(--ink); }
+  .note { margin: 14px 0 0; font-size: 0.78em; line-height: 1.5; color: var(--muted); }
+</style>
+</head>
+<body>
+<main class="demo">
+  <header class="demo-head">
+    <a class="back" href="https://photon26.github.io/">&larr; Yuan Gao</a>
+    <h1>Press a vision-based tactile sensor</h1>
+    <p class="lead">A GelSight-type sensor, simulated in your browser. Press the gel with the mouse or a finger, drag to shear it, and switch views to see what the camera records and what can be recovered from it.</p>
+  </header>
+
+  <div class="stage">
+    <div class="viewer">
+      <div class="tabs" role="tablist" aria-label="View">
+        <button class="tab" role="tab" aria-selected="true" data-view="raw">Tactile image</button>
+        <button class="tab" role="tab" aria-selected="false" data-view="depth">Depth map</button>
+        <button class="tab" role="tab" aria-selected="false" data-view="markers">Marker<span class="wide"> displacement</span><span class="narrow">s</span></button>
+      </div>
+      <div class="canvas-wrap" id="wrap">
+        <canvas id="view" tabindex="0" aria-label="Simulated tactile sensor surface. Press and drag to indent the gel; with the keyboard, Space presses, arrow keys move, Q and E twist."></canvas>
+        <div class="hint" id="hint">Press &amp; drag on the gel</div>
+      </div>
+      <div class="legend" id="legend">
+        <div class="legend-item" data-for="raw">
+          <span>Simulated camera image. Light from</span>
+          <span><span class="ldot" style="background:#d9473c"></span>top</span>
+          <span><span class="ldot" style="background:#2f9e57"></span>lower left</span>
+          <span><span class="ldot" style="background:#3466d6"></span>lower right</span>
+        </div>
+        <div class="legend-item" data-for="depth" hidden>
+          <span class="seg" role="group" aria-label="Depth source">
+            <button type="button" data-src="recon" aria-pressed="true">Reconstructed</button><button type="button" data-src="truth" aria-pressed="false">Ground truth</button>
+          </span>
+          <span class="cbar" aria-hidden="true"><span class="cbar-grad" id="cbar"></span><span class="cbar-lab"><span>0</span><span id="cbar-max">1.15 mm</span></span></span>
+          <span class="peak" id="peak"></span>
+        </div>
+        <div class="legend-item" data-for="markers" hidden>
+          <span>Arrows &times;3</span>
+          <span><span class="scalebar" id="scalebar"></span>&nbsp; 0.5 mm</span>
+          <span><span class="ramp"></span>&nbsp; small &rarr; large</span>
+        </div>
+      </div>
+      <dl class="readouts" aria-live="off">
+        <div><dt>Contact</dt><dd id="ro-area">&ndash;</dd></div>
+        <div><dt>Normal force</dt><dd id="ro-fn">&ndash;</dd></div>
+        <div><dt>Shear force</dt><dd id="ro-ft">&ndash;</dd></div>
+        <div><dt>Torque</dt><dd id="ro-t">&ndash;</dd></div>
+        <div><dt>State</dt><dd id="ro-state">&ndash;</dd></div>
+      </dl>
+    </div>
+
+    <aside class="controls" aria-label="Controls">
+      <div>
+        <span class="glabel" id="ind-label">Indenter</span>
+        <div class="shapes" role="radiogroup" aria-labelledby="ind-label">
+          <button type="button" class="shape" role="radio" aria-checked="true" data-shape="sphere"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8.4 9.6a4.6 4.6 0 0 1 3.4-2.6"/></svg>Sphere</button>
+          <button type="button" class="shape" role="radio" aria-checked="false" data-shape="cylinder"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="6" cy="12" rx="2.6" ry="4.5"/><path d="M6 7.5h12M6 16.5h12M18 7.5a2.6 4.5 0 0 1 0 9"/></svg>Cylinder</button>
+          <button type="button" class="shape" role="radio" aria-checked="false" data-shape="cube"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l7.5 4.2v8.6L12 20.5l-7.5-4.2V7.7z"/><path d="M4.5 7.7L12 12l7.5-4.3M12 12v8.5"/></svg>Cube</button>
+          <button type="button" class="shape" role="radio" aria-checked="false" data-shape="screw"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8.6 12h6.8M12 8.6v6.8" stroke-width="2.2"/></svg>Screw</button>
+          <button type="button" class="shape" role="radio" aria-checked="false" data-shape="letter"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.8 19L12 5l5.2 14M8.7 14h6.6"/></svg>Letter</button>
+        </div>
+        <label class="letter-row" id="letter-row" hidden>Characters <input id="letter" type="text" maxlength="3" value="R" spellcheck="false" autocomplete="off" aria-label="Characters for the letter stamp"></label>
+      </div>
+
+      <div>
+        <label class="slider"><span class="glabel">Indentation depth</span><output id="depth-out" for="depth">1.00 mm</output><input id="depth" type="range" min="0.2" max="2" step="0.05" value="1"></label>
+        <label class="slider"><span class="glabel">Rotation</span><output id="rot-out" for="rot">0&deg;</output><input id="rot" type="range" min="-180" max="180" step="1" value="0" disabled></label>
+      </div>
+
+      <label class="check"><input id="show-markers" type="checkbox" checked> Markers in tactile image</label>
+
+      <p class="tip" id="tip">Drag while pressing to shear the gel. Scroll, or press <kbd>Q</kbd>/<kbd>E</kbd>, while pressing to twist.</p>
+    </aside>
+  </div>
+
+  <section class="explain" aria-labelledby="how">
+    <h2 id="how">How it works</h2>
+    <div class="explain-grid">
+      <figure class="diagram">
+        <svg viewBox="0 0 340 214" role="img" aria-labelledby="dg-title">
+          <title id="dg-title">Cross-section of a GelSight-type tactile sensor</title>
+          <defs>
+            <marker id="dg-ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#1f2a37"/></marker>
+          </defs>
+          <line x1="170" y1="1" x2="170" y2="21" stroke="#1f2a37" stroke-width="1.6" marker-end="url(#dg-ah)"/>
+          <text class="dl" x="178" y="14">F</text>
+          <circle cx="170" cy="56" r="30" fill="#d9e0e7" stroke="#8a96a3" stroke-width="1.2"/>
+          <text class="dl" x="207" y="46">indenter</text>
+          <path d="M30 78H126C138 78 146 79 152 80A30 30 0 0 0 188 80C194 79 202 78 214 78H310V118H30Z" fill="#eef2f5"/>
+          <g stroke-width="1.3" opacity="0.75" fill="none">
+            <path d="M28 112L104 78.6M28 112L150 80.4" stroke="#d9473c"/>
+            <path d="M312 112L190 80.4M312 112L240 78.6" stroke="#3466d6"/>
+          </g>
+          <path d="M30 78H126C138 78 146 79 152 80A30 30 0 0 0 188 80C194 79 202 78 214 78H310" fill="none" stroke="#3d4651" stroke-width="2.4"/>
+          <g fill="#1f2a37"><circle cx="50" cy="78" r="2"/><circle cx="74" cy="78" r="2"/><circle cx="266" cy="78" r="2"/><circle cx="290" cy="78" r="2"/></g>
+          <text class="dl" x="32" y="70">markers</text>
+          <text class="dl" x="222" y="70">reflective coating</text>
+          <text class="dl" x="170" y="111" text-anchor="middle">elastomer</text>
+          <rect x="30" y="118" width="280" height="14" fill="#dbe7f1" stroke="#b6c8d8"/>
+          <text class="dl" x="214" y="129" style="font-size:10.5px">acrylic window</text>
+          <rect x="17" y="103" width="11" height="18" rx="2" fill="#d9473c"/>
+          <rect x="312" y="103" width="11" height="18" rx="2" fill="#3466d6"/>
+          <text class="dl" x="22.5" y="97" text-anchor="middle">R</text>
+          <text class="dl" x="317.5" y="97" text-anchor="middle">B</text>
+          <path d="M163 166L46 133M177 166L294 133" stroke="#8a96a3" stroke-dasharray="3 3" fill="none"/>
+          <rect x="161" y="166" width="18" height="10" rx="1.5" fill="#66717d"/>
+          <rect x="152" y="176" width="36" height="22" rx="3" fill="#3d4651"/>
+          <text class="dl" x="196" y="192">camera</text>
+        </svg>
+        <figcaption>Cross-section. The camera images the coated gel surface from below; red and blue LEDs light it from the sides (the green one sits out of this plane).</figcaption>
+      </figure>
+      <div class="explain-text">
+        <p>A GelSight-type sensor turns touch into an image. A soft silicone pad with an opaque, reflective coating on its contact side sits on a clear window, and a camera underneath sees only how that surface bends, never the object's own color or texture. Red, green and blue LEDs light the coating from three directions at a shallow angle.</p>
+        <ol>
+          <li><strong>Color &rarr; slope.</strong> A patch tilted toward an LED looks brighter in that LED's color, so each pixel's (R, G, B) encodes the local surface normal: photometric stereo with three lights in a single frame. Real sensors calibrate this once by pressing a ball of known radius and storing a color-to-gradient lookup table.</li>
+          <li><strong>Slope &rarr; shape.</strong> Integrating the gradient field, i.e. solving a Poisson equation, gives the depth map. The Depth view does this on the simulated camera image (with a DCT-based Poisson solver) and plots it against the true profile. Errors gather at steep walls, where part of the surface turns away from a light.</li>
+          <li><strong>Markers &rarr; force.</strong> Dots printed on the gel move with its surface. Their mean displacement follows the shear force, their rotation the torque, and their outward spread the normal force; when outer markers lag behind inner ones, slip is starting. In practice these mappings are calibrated against a force/torque sensor or learned by a neural network.</li>
+        </ol>
+      </div>
+    </div>
+    <p class="note">Simulated, not recorded: a simplified elastic contact model with Lambertian shading. Forces use an illustrative calibration (gel shear modulus 40&nbsp;kPa, 2&nbsp;mm thick, friction coefficient 1.0).</p>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =====================================================================
+     Embedding: inside an iframe the page drops its header and reports its
+     height to the parent page (message type "tactile-demo:height").
+     ?embed=1 / ?embed=0 overrides the detection.
+     ===================================================================== */
+  var params = new URLSearchParams(location.search);
+  var inFrame = false;
+  try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
+  var embedded = params.has('embed') ? params.get('embed') !== '0' : inFrame;
+  if (embedded) document.documentElement.classList.add('embedded');
+
+  // Inside a same-origin page, follow its root font size (the homepage theme
+  // switches 16px -> 18px on wide screens) so the text matches the page around it.
+  function syncFont() {
+    try {
+      var fs = window.parent.getComputedStyle(window.parent.document.documentElement).fontSize;
+      if (fs) document.documentElement.style.fontSize = fs;
+    } catch (e) { /* cross-origin parent: keep 16px */ }
+  }
+  if (embedded && inFrame) { syncFont(); window.addEventListener('resize', syncFont); }
+
+  function postHeight() {
+    if (!inFrame) return;
+    var h = Math.ceil(document.body.getBoundingClientRect().height);
+    try { window.parent.postMessage({ type: 'tactile-demo:height', height: h }, '*'); } catch (e) { /* ignore */ }
+  }
+
+  /* =====================================================================
+     Model constants
+     ===================================================================== */
+  var FOVX = 24, FOVY = 18;                 // field of view, mm
+  var W = 320, H = 240, N = W * H;          // simulation grid
+  var PX = FOVX / W;                        // 0.075 mm per pixel
+  var RW = 160, RH = 120, RN = RW * RH;     // reconstruction grid
+  var RPX = FOVX / RW;
+
+  var R1 = 9, R2 = 21, RM = 13;             // triple-box radii, sigma ~0.7 / 1.6 / 1.0 mm
+  var SKIRT = 1.0;                          // spread of the depression around the contact
+  var BULGE = 0.25;                         // raised rim (incompressible gel)
+  var PILE = 0.25;                          // pile-up ahead of a shearing indenter
+  var RADIAL = 0.9;                         // outward marker motion under normal load, mm
+  var MU = 1.0;                             // friction coefficient
+  var KT = 0.04 / 2.0;                      // shear modulus / gel thickness, N/mm^3
+  var KN = 0.032;                           // normal force per indentation volume, N/mm^3
+
+  var ELEV = 32 * Math.PI / 180;            // LED elevation
+  var LAZ = [90, 210, 330].map(function (a) { return a * Math.PI / 180; });  // R top, G lower-left, B lower-right
+  var L = LAZ.map(function (a) { return [Math.cos(ELEV) * Math.cos(a), -Math.cos(ELEV) * Math.sin(a), Math.sin(ELEV)]; });
+  var AMB = 0.12, GAIN = 0.92;
+  var LI = inv3(L);
+  var GAMMA = 1.45;                         // camera tone curve (linear light -> 8 bit)
+  var TONE = new Uint8ClampedArray(1025), INVT = new Float32Array(256);
+  for (var ti = 0; ti <= 1024; ti++) TONE[ti] = Math.round(255 * Math.pow(ti / 1024, 1 / GAMMA));
+  for (ti = 0; ti < 256; ti++) INVT[ti] = Math.pow(ti / 255, GAMMA);
+  function tone(v) { return TONE[v <= 0 ? 0 : (v >= 1 ? 1024 : (v * 1024 + 0.5) | 0)]; }
+
+  var FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif';
+
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  function sstep(e0, e1, x) { var t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); }
+  function inv3(m) {
+    var a = m[0][0], b = m[0][1], c = m[0][2], d = m[1][0], e = m[1][1], f = m[1][2], g = m[2][0], h = m[2][1], i = m[2][2];
+    var A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g;
+    var det = a * A + b * B + c * C;
+    return [
+      [A / det, -(b * i - c * h) / det, (b * f - c * e) / det],
+      [B / det, (a * i - c * g) / det, -(a * f - c * d) / det],
+      [C / det, -(a * h - b * g) / det, (a * e - b * d) / det]
+    ];
+  }
+
+  /* =====================================================================
+     Static camera properties: LED fall-off, vignetting, fixed sensor noise
+     ===================================================================== */
+  var AG = new Float32Array(3 * N), NZ = new Float32Array(3 * N), flat = new Uint8ClampedArray(4 * N);
+  (function () {
+    var seed = 20240611;
+    function rnd() { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return (seed + 0.5) / 4294967296; }
+    var sinE = Math.sin(ELEV);
+    for (var y = 0; y < H; y++) {
+      for (var x = 0; x < W; x++) {
+        var i = y * W + x;
+        var nx = (x + 0.5) / W * 2 - 1, ny = ((y + 0.5) / H * 2 - 1) * 0.75;
+        var v = nx * nx + ny * ny;
+        var lum = Math.sqrt(-2 * Math.log(rnd())) * Math.cos(6.2831853 * rnd()) * 0.006;
+        for (var c = 0; c < 3; c++) {
+          var proj = nx * Math.cos(LAZ[c]) - ny * Math.sin(LAZ[c]);
+          var a = GAIN * (0.86 + 0.11 * proj - 0.10 * v);
+          var nz = lum + Math.sqrt(-2 * Math.log(rnd())) * Math.cos(6.2831853 * rnd()) * 0.006;
+          AG[c * N + i] = a;
+          NZ[c * N + i] = nz;
+          flat[4 * i + c] = tone(AMB + a * sinE + nz);
+        }
+        flat[4 * i + 3] = 255;
+      }
+    }
+  })();
+
+  /* =====================================================================
+     Indenter height maps ("stamps"): h(x, y) in mm above the lowest point,
+     sampled on a 16 x 16 mm grid in the indenter's own frame
+     ===================================================================== */
+  var SL = 8, SN = 321, SS = 2 * SL / (SN - 1), BIG = 50;
+  var stamp = new Float32Array(SN * SN);
+  var stampR = 4, shapeVersion = 0;
+  var SPHERE_R = 4, ROD_R = 2.5, ROD_HL = 6.5, CUBE_HALF = 3, SCREW_R = 3.5, STAMP_HALF = 5, LETTER_RELIEF = 1.1;
+
+  function letterMask(text) {
+    var n = 201, out = new Float32Array(n * n);
+    var t = (text || '').trim();
+    if (!t) return out;
+    var c = document.createElement('canvas');
+    c.width = c.height = n;
+    var g = c.getContext('2d');
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, n, n);
+    g.fillStyle = '#fff';
+    g.textAlign = 'center';
+    g.textBaseline = 'alphabetic';
+    var size = 200;
+    g.font = '700 ' + size + 'px ' + FONT;
+    var m = g.measureText(t);
+    var bw = (m.actualBoundingBoxLeft || 0) + (m.actualBoundingBoxRight || m.width);
+    var bh = (m.actualBoundingBoxAscent || size * 0.72) + (m.actualBoundingBoxDescent || 0);
+    var k = Math.min(156 / Math.max(bw, 1), 156 / Math.max(bh, 1));
+    size = size * k;
+    g.font = '700 ' + size.toFixed(1) + 'px ' + FONT;
+    m = g.measureText(t);
+    var l = m.actualBoundingBoxLeft || m.width / 2, r = m.actualBoundingBoxRight || m.width / 2;
+    var as = m.actualBoundingBoxAscent || size * 0.72, ds = m.actualBoundingBoxDescent || 0;
+    g.fillText(t, n / 2 + (l - r) / 2, n / 2 + (as - ds) / 2);
+    var d = g.getImageData(0, 0, n, n).data, tmp = new Float32Array(n * n);
+    for (var i = 0; i < n * n; i++) out[i] = d[4 * i] / 255;
+    for (var pass = 0; pass < 2; pass++) {   // bevel the stroke edges (~0.1 mm)
+      smallBlur(out, tmp, n, n, 2, true);
+      smallBlur(tmp, out, n, n, 2, false);
+    }
+    return out;
+  }
+
+  function smallBlur(src, dst, w, h, r, horiz) {
+    var inv = 1 / (2 * r + 1), x, y, acc, k;
+    if (horiz) {
+      for (y = 0; y < h; y++) {
+        for (x = 0; x < w; x++) {
+          acc = 0;
+          for (k = -r; k <= r; k++) { var xx = x + k; if (xx >= 0 && xx < w) acc += src[y * w + xx]; }
+          dst[y * w + x] = acc * inv;
+        }
+      }
+    } else {
+      for (y = 0; y < h; y++) {
+        for (x = 0; x < w; x++) {
+          acc = 0;
+          for (k = -r; k <= r; k++) { var yy = y + k; if (yy >= 0 && yy < h) acc += src[yy * w + x]; }
+          dst[y * w + x] = acc * inv;
+        }
+      }
+    }
+  }
+
+  function phillipsArm(along, perp) {
+    var t = along / 2.25;
+    if (t >= 1) return 0;
+    var hw = 0.46 - 0.14 * t;
+    return (0.25 + 1.35 * (1 - t)) * sstep(hw + 0.09, hw - 0.09, perp) * sstep(1, 0.84, t);
+  }
+
+  function buildStamp() {
+    var shape = st.shape, mask = shape === 'letter' ? letterMask(st.text) : null;
+    var R2s = SPHERE_R * SPHERE_R;
+    for (var j = 0; j < SN; j++) {
+      var y = -SL + j * SS;
+      for (var i = 0; i < SN; i++) {
+        var x = -SL + i * SS, h = BIG, r, e, dx, dy, d;
+        if (shape === 'sphere') {
+          r = x * x + y * y;
+          if (r < R2s) h = SPHERE_R - Math.sqrt(R2s - r);
+        } else if (shape === 'cylinder') {           // rod lying along x: line contact
+          var ay = Math.abs(y), ax = Math.abs(x);
+          if (ay < ROD_R && ax < ROD_HL) {
+            h = ROD_R - Math.sqrt(ROD_R * ROD_R - y * y);
+            e = ax - (ROD_HL - 0.6);
+            if (e > 0) h += 0.6 - Math.sqrt(Math.max(0, 0.36 - e * e));
+          }
+        } else if (shape === 'cube') {               // 6 mm block, 0.5 mm edge fillet
+          dx = Math.max(Math.abs(x) - (CUBE_HALF - 0.5), 0);
+          dy = Math.max(Math.abs(y) - (CUBE_HALF - 0.5), 0);
+          d = Math.sqrt(dx * dx + dy * dy);
+          if (d < 0.5) h = 0.5 - Math.sqrt(0.25 - d * d);
+        } else if (shape === 'screw') {              // Phillips pan head, 7 mm
+          r = Math.sqrt(x * x + y * y);
+          if (r < SCREW_R) {
+            h = 7 - Math.sqrt(49 - r * r);
+            e = r - (SCREW_R - 0.7);
+            if (e > 0) h += 0.7 - Math.sqrt(Math.max(0, 0.49 - e * e));
+            var ax2 = Math.abs(x), ay2 = Math.abs(y);
+            h += Math.max(phillipsArm(ax2, ay2), phillipsArm(ay2, ax2), Math.max(0, 1.5 - 1.6 * r));
+          }
+        } else if (shape === 'letter') {             // 10 mm stamp with raised characters
+          dx = Math.max(Math.abs(x) - (STAMP_HALF - 0.6), 0);
+          dy = Math.max(Math.abs(y) - (STAMP_HALF - 0.6), 0);
+          d = Math.sqrt(dx * dx + dy * dy);
+          if (d < 0.6) {
+            var mi = i - 60, mj = j - 60;
+            var mv = (mi >= 0 && mi < 201 && mj >= 0 && mj < 201) ? mask[mj * 201 + mi] : 0;
+            h = LETTER_RELIEF * (1 - mv) + 0.6 - Math.sqrt(0.36 - d * d);
+          }
+        }
+        stamp[j * SN + i] = h;
+      }
+    }
+    stampR = { sphere: SPHERE_R, cylinder: Math.hypot(ROD_HL, ROD_R), cube: CUBE_HALF * Math.SQRT2, screw: SCREW_R, letter: STAMP_HALF * Math.SQRT2 }[shape];
+    shapeVersion++;
+  }
+
+  /* =====================================================================
+     State
+     ===================================================================== */
+  var st = {
+    shape: 'sphere', text: 'R', depthTarget: 1.0, rotDeg: 0,
+    pressed: false, d: 0,
+    pos: { x: FOVX / 2, y: FOVY / 2 }, anchor: { x: FOVX / 2, y: FOVY / 2 },
+    twist: 0, twistAnchor: 0, slipT: -1e9, lastRowY: FOVY / 2
+  };
+  function theta() { return st.rotDeg * Math.PI / 180 + st.twist; }
+
+  var phys = { vol: 0, area: 0, Fn: 0, Kt: 0, Kr: 0, Dmax: 0, phiMax: 0, Ft: 0, T: 0, peak: 0 };
+
+  /* =====================================================================
+     Gel mechanics
+     ===================================================================== */
+  var P = new Float32Array(N), G1 = new Float32Array(N), G2 = new Float32Array(N), MK = new Float32Array(N),
+      GM = new Float32Array(N), WD = new Float32Array(N), TA = new Float32Array(N), TB = new Float32Array(N);
+  var hasContact = false;
+
+  function blurH(src, dst, r) {
+    var inv = 1 / (2 * r + 1);
+    for (var y = 0; y < H; y++) {
+      var o = y * W, acc = 0, x;
+      for (x = 0; x <= r; x++) acc += src[o + x];
+      for (x = 0; x < W; x++) {
+        dst[o + x] = acc * inv;
+        var a = x + r + 1, b = x - r;
+        if (a < W) acc += src[o + a];
+        if (b >= 0) acc -= src[o + b];
+      }
+    }
+  }
+  function blurV(src, dst, r) {
+    var inv = 1 / (2 * r + 1);
+    for (var x = 0; x < W; x++) {
+      var acc = 0, y;
+      for (y = 0; y <= r; y++) acc += src[y * W + x];
+      for (y = 0; y < H; y++) {
+        dst[y * W + x] = acc * inv;
+        var a = y + r + 1, b = y - r;
+        if (a < H) acc += src[a * W + x];
+        if (b >= 0) acc -= src[b * W + x];
+      }
+    }
+  }
+  function gauss(src, out, r) {   // three box passes ~ Gaussian
+    blurH(src, TA, r); blurV(TA, TB, r);
+    blurH(TB, TA, r); blurV(TA, TB, r);
+    blurH(TB, TA, r); blurV(TA, out, r);
+  }
+
+  function penetrate() {
+    P.fill(0);
+    var d = st.d;
+    if (d <= 1e-4) return false;
+    var th = theta(), c = Math.cos(th), s = Math.sin(th);
+    var cx = st.pos.x, cy = st.pos.y, R = stampR + 0.1;
+    var x0 = Math.max(0, Math.floor((cx - R) / PX)), x1 = Math.min(W - 1, Math.ceil((cx + R) / PX));
+    var y0 = Math.max(0, Math.floor((cy - R) / PX)), y1 = Math.min(H - 1, Math.ceil((cy + R) / PX));
+    var any = false;
+    for (var y = y0; y <= y1; y++) {
+      var wy = (y + 0.5) * PX - cy;
+      for (var x = x0; x <= x1; x++) {
+        var wx = (x + 0.5) * PX - cx;
+        var u = (c * wx + s * wy + SL) / SS, v = (-s * wx + c * wy + SL) / SS;
+        if (u < 0 || v < 0 || u >= SN - 1 || v >= SN - 1) continue;
+        var iu = u | 0, iv = v | 0, fu = u - iu, fv = v - iv, k = iv * SN + iu;
+        var h = (stamp[k] * (1 - fu) + stamp[k + 1] * fu) * (1 - fv) + (stamp[k + SN] * (1 - fu) + stamp[k + SN + 1] * fu) * fv;
+        var p = d - h;
+        if (p > 0) { P[y * W + x] = p; any = true; }
+      }
+    }
+    return any;
+  }
+
+  function simulate() {
+    hasContact = penetrate();
+    if (!hasContact) {
+      WD.fill(0);
+      phys.vol = phys.area = phys.Fn = phys.Kt = phys.Kr = phys.Dmax = phys.phiMax = phys.peak = 0;
+      return;
+    }
+    gauss(P, G1, R1);
+    gauss(P, G2, R2);
+    var i, x, y;
+    for (i = 0; i < N; i++) MK[i] = P[i] > 0.004 ? 1 : 0;
+    gauss(MK, GM, RM);
+
+    var Dx = st.pos.x - st.anchor.x, Dy = st.pos.y - st.anchor.y, kp = PILE / (2 * PX);
+    for (y = 0; y < H; y++) {
+      for (x = 0; x < W; x++) {
+        i = y * W + x;
+        var p = P[i], g1 = G1[i], g2 = G2[i];
+        var v = SKIRT * g1;
+        if (v < p) v = p;
+        var ring = g2 - g1;
+        if (ring > 0) v -= BULGE * ring;
+        if (x > 0 && x < W - 1 && y > 0 && y < H - 1) v += kp * (Dx * (G2[i + 1] - G2[i - 1]) + Dy * (G2[i + W] - G2[i - W]));
+        TA[i] = v > p ? v : p;           // the gel never passes through the indenter
+      }
+    }
+    blurH(TA, TB, 1); blurV(TB, TA, 1); blurH(TA, TB, 1); blurV(TB, WD, 1);
+
+    var vol = 0, area = 0, sg = 0, sgr = 0, peak = 0, cx = st.pos.x, cy = st.pos.y;
+    for (y = 0; y < H; y++) {
+      var ry = (y + 0.5) * PX - cy;
+      for (x = 0; x < W; x++) {
+        i = y * W + x;
+        var w = WD[i];
+        if (w > 0) { vol += w; if (w > peak) peak = w; }
+        area += MK[i];
+        var g = 2 * GM[i];
+        if (g > 1) g = 1;
+        if (g > 1e-3) { var rx = (x + 0.5) * PX - cx; sg += g; sgr += g * (rx * rx + ry * ry); }
+      }
+    }
+    var a2 = PX * PX;
+    phys.vol = vol * a2;
+    phys.area = area * a2;
+    phys.peak = peak;
+    phys.Fn = KN * phys.vol;
+    phys.Kt = KT * sg * a2;
+    phys.Kr = KT * sgr * a2;
+    phys.Dmax = phys.Kt > 1e-9 ? MU * phys.Fn / phys.Kt : 0;
+    var rEff = (2 / 3) * Math.sqrt(phys.area / Math.PI);
+    phys.phiMax = phys.Kr > 1e-9 ? MU * phys.Fn * rEff / phys.Kr : 0;
+  }
+
+  // Coulomb friction: the stuck patch follows the indenter until the
+  // tangential load exceeds mu * Fn, then the anchor slides along.
+  function limitShear(now) {
+    if (!st.pressed && st.d === 0) {
+      st.anchor.x = st.pos.x; st.anchor.y = st.pos.y; st.twistAnchor = st.twist;
+      return;
+    }
+    var Dx = st.pos.x - st.anchor.x, Dy = st.pos.y - st.anchor.y, m = Math.hypot(Dx, Dy);
+    if (m > phys.Dmax) {
+      var k = m > 0 ? phys.Dmax / m : 0;
+      st.anchor.x = st.pos.x - Dx * k;
+      st.anchor.y = st.pos.y - Dy * k;
+      if (st.pressed && m - phys.Dmax > 2e-3) st.slipT = now;
+    }
+    var phi = st.twist - st.twistAnchor;
+    if (Math.abs(phi) > phys.phiMax) {
+      st.twistAnchor = st.twist - Math.sign(phi) * phys.phiMax;
+      if (st.pressed && Math.abs(phi) - phys.phiMax > 2e-3) st.slipT = now;
+    }
+  }
+
+  /* =====================================================================
+     Markers
+     ===================================================================== */
+  var MSP = 1.9, markers = [];
+  (function () {
+    var nx = Math.floor(FOVX / MSP), ny = Math.floor(FOVY / MSP);
+    var ox = (FOVX - (nx - 1) * MSP) / 2, oy = (FOVY - (ny - 1) * MSP) / 2;
+    for (var j = 0; j < ny; j++) for (var i = 0; i < nx; i++) markers.push({ X: ox + i * MSP, Y: oy + j * MSP, ux: 0, uy: 0 });
+  })();
+
+  function sample(arr, xm, ym) {
+    var fx = clamp(xm / PX - 0.5, 0, W - 1.001), fy = clamp(ym / PX - 0.5, 0, H - 1.001);
+    var x0 = fx | 0, y0 = fy | 0, tx = fx - x0, ty = fy - y0, i = y0 * W + x0;
+    return (arr[i] * (1 - tx) + arr[i + 1] * tx) * (1 - ty) + (arr[i + W] * (1 - tx) + arr[i + W + 1] * tx) * ty;
+  }
+
+  function updateMarkers() {
+    var k;
+    if (!hasContact) { for (k = 0; k < markers.length; k++) markers[k].ux = markers[k].uy = 0; return; }
+    var Dx = st.pos.x - st.anchor.x, Dy = st.pos.y - st.anchor.y;
+    var phi = st.twist - st.twistAnchor, cp = Math.cos(phi) - 1, sp = Math.sin(phi);
+    for (k = 0; k < markers.length; k++) {
+      var m = markers[k];
+      var g = Math.min(1, 2 * sample(GM, m.X, m.Y));
+      g = Math.min(1, 2 * sample(GM, m.X + Dx * g, m.Y + Dy * g));
+      var ux = Dx * g, uy = Dy * g;
+      if (phi !== 0) {
+        var rx = m.X - st.anchor.x, ry = m.Y - st.anchor.y;
+        ux += (cp * rx - sp * ry) * g;
+        uy += (sp * rx + cp * ry) * g;
+      }
+      ux -= RADIAL * (sample(G2, m.X + PX, m.Y) - sample(G2, m.X - PX, m.Y)) / (2 * PX);
+      uy -= RADIAL * (sample(G2, m.X, m.Y + PX) - sample(G2, m.X, m.Y - PX)) / (2 * PX);
+      m.ux = ux; m.uy = uy;
+    }
+  }
+
+  /* =====================================================================
+     Rendering the camera image (three coloured lights, Lambertian coating)
+     ===================================================================== */
+  var img = new ImageData(W, H), pxd = img.data;
+  pxd.set(flat);
+
+  function shade() {
+    if (!hasContact) { pxd.set(flat); return; }
+    var L0 = L[0], L1 = L[1], L2 = L[2];
+    for (var y = 0; y < H; y++) {
+      var ym = y > 0 ? -W : 0, yp = y < H - 1 ? W : 0, dyk = 1 / (((yp - ym) / W) * PX);
+      for (var x = 0; x < W; x++) {
+        var i = y * W + x;
+        var xm = x > 0 ? -1 : 0, xp = x < W - 1 ? 1 : 0;
+        var gx = (WD[i + xp] - WD[i + xm]) / ((xp - xm) * PX);
+        var gy = (WD[i + yp] - WD[i + ym]) * dyk;
+        var q = 1 / Math.sqrt(1 + gx * gx + gy * gy), nx = -gx * q, ny = -gy * q, nz = q;
+        var d0 = L0[0] * nx + L0[1] * ny + L0[2] * nz; if (d0 < 0) d0 = 0;
+        var d1 = L1[0] * nx + L1[1] * ny + L1[2] * nz; if (d1 < 0) d1 = 0;
+        var d2 = L2[0] * nx + L2[1] * ny + L2[2] * nz; if (d2 < 0) d2 = 0;
+        var o = 4 * i;
+        pxd[o]     = tone(AMB + AG[i] * d0 + NZ[i]);
+        pxd[o + 1] = tone(AMB + AG[N + i] * d1 + NZ[N + i]);
+        pxd[o + 2] = tone(AMB + AG[2 * N + i] * d2 + NZ[2 * N + i]);
+      }
+    }
+  }
+
+  /* =====================================================================
+     Shape from the image: invert the shading per pixel (three lights ->
+     surface normal -> gradient), then integrate the gradient field with a
+     DCT-based Poisson solver (Neumann boundary).
+     ===================================================================== */
+  var AGr = new Float32Array(3 * RN);
+  (function () {
+    for (var j = 0; j < RH; j++) for (var i = 0; i < RW; i++) {
+      for (var c = 0; c < 3; c++) {
+        var s = 0;
+        for (var dy = 0; dy < 2; dy++) for (var dx = 0; dx < 2; dx++) s += AG[c * N + (2 * j + dy) * W + 2 * i + dx];
+        AGr[c * RN + j * RW + i] = s / 4;
+      }
+    }
+  })();
+  var CW = new Float64Array(RW * RW), CH = new Float64Array(RH * RH), DEN = new Float64Array(RN);
+  (function () {
+    var k, n;
+    for (k = 0; k < RW; k++) for (n = 0; n < RW; n++) CW[k * RW + n] = Math.cos(Math.PI * k * (n + 0.5) / RW);
+    for (k = 0; k < RH; k++) for (n = 0; n < RH; n++) CH[k * RH + n] = Math.cos(Math.PI * k * (n + 0.5) / RH);
+    for (var l = 0; l < RH; l++) for (k = 0; k < RW; k++) {
+      DEN[l * RW + k] = (2 * Math.cos(Math.PI * k / RW) - 2) + (2 * Math.cos(Math.PI * l / RH) - 2);
+    }
+  })();
+  var RGX = new Float64Array(RN), RGY = new Float64Array(RN), RF = new Float64Array(RN), RT = new Float64Array(RN), REC = new Float32Array(RN);
+  var reconPeak = 0;
+
+  function dct2(src, dst) {
+    var j, k, n, s, o;
+    for (j = 0; j < RH; j++) {
+      o = j * RW;
+      for (k = 0; k < RW; k++) {
+        var ck = k * RW; s = 0;
+        for (n = 0; n < RW; n++) s += src[o + n] * CW[ck + n];
+        RT[o + k] = s;
+      }
+    }
+    for (k = 0; k < RW; k++) {
+      for (var l = 0; l < RH; l++) {
+        var cl = l * RH; s = 0;
+        for (var m = 0; m < RH; m++) s += RT[m * RW + k] * CH[cl + m];
+        dst[l * RW + k] = s;
+      }
+    }
+  }
+  function idct2(src, dst) {
+    var k, m, l, s, j, n;
+    for (k = 0; k < RW; k++) {
+      for (m = 0; m < RH; m++) {
+        s = 0.5 * src[k];
+        for (l = 1; l < RH; l++) s += src[l * RW + k] * CH[l * RH + m];
+        RT[m * RW + k] = s * 2 / RH;
+      }
+    }
+    for (j = 0; j < RH; j++) {
+      var o = j * RW;
+      for (n = 0; n < RW; n++) {
+        s = 0.5 * RT[o];
+        for (k = 1; k < RW; k++) s += RT[o + k] * CW[k * RW + n];
+        dst[o + n] = s * 2 / RW;
+      }
+    }
+  }
+
+  function reconstruct() {
+    var i, j, r;
+    if (!hasContact) { REC.fill(0); reconPeak = 0; return; }
+    for (j = 0; j < RH; j++) {
+      for (i = 0; i < RW; i++) {
+        r = j * RW + i;
+        var I0 = 0, I1 = 0, I2 = 0;
+        for (var dy = 0; dy < 2; dy++) for (var dx = 0; dx < 2; dx++) {
+          var o = 4 * ((2 * j + dy) * W + 2 * i + dx);
+          I0 += INVT[pxd[o]]; I1 += INVT[pxd[o + 1]]; I2 += INVT[pxd[o + 2]];
+        }
+        var v0 = (I0 / 4 - AMB) / AGr[r], v1 = (I1 / 4 - AMB) / AGr[RN + r], v2 = (I2 / 4 - AMB) / AGr[2 * RN + r];
+        var nx = LI[0][0] * v0 + LI[0][1] * v1 + LI[0][2] * v2;
+        var ny = LI[1][0] * v0 + LI[1][1] * v1 + LI[1][2] * v2;
+        var nz = LI[2][0] * v0 + LI[2][1] * v1 + LI[2][2] * v2;
+        if (nz < 0.2) nz = 0.2;
+        RGX[r] = -nx / nz; RGY[r] = -ny / nz;
+      }
+    }
+    for (j = 0; j < RH; j++) {
+      for (i = 0; i < RW; i++) {
+        r = j * RW + i;
+        var gxp = i < RW - 1 ? RGX[r + 1] : 0, gxm = i > 0 ? RGX[r - 1] : 0;
+        var gyp = j < RH - 1 ? RGY[r + RW] : 0, gym = j > 0 ? RGY[r - RW] : 0;
+        RF[r] = (gxp - gxm + gyp - gym) / (2 * RPX);
+      }
+    }
+    dct2(RF, RF);
+    var h2 = RPX * RPX;
+    RF[0] = 0;
+    for (r = 1; r < RN; r++) RF[r] = RF[r] * h2 / DEN[r];
+    idct2(RF, RF);
+    var tmp = Float32Array.from(RF).sort();   // background is flat: use the median as zero level
+    var base = tmp[RN >> 1];
+    reconPeak = 0;
+    for (r = 0; r < RN; r++) { var v = RF[r] - base; REC[r] = v; if (v > reconPeak) reconPeak = v; }
+  }
+
+  /* =====================================================================
+     Drawing
+     ===================================================================== */
+  var cv = document.getElementById('view'), ctx = cv.getContext('2d');
+  var wrap = document.getElementById('wrap');
+  var simC = document.createElement('canvas'); simC.width = W; simC.height = H;
+  var simX = simC.getContext('2d');
+  var depC = document.createElement('canvas'), depX = depC.getContext('2d'), depImg = null;
+  var dpr = 1, view = 'raw', depthSrc = 'recon', showMarkers = true;
+  var hover = { on: false, x: 0, y: 0 };
+
+  function viridis(t) {
+    var c0 = [0.2777273272234177, 0.005407344544966578, 0.3340998053353061],
+        c1 = [0.1050930431085774, 1.404613529898575, 1.384590162594685],
+        c2 = [-0.3308618287255563, 0.214847559468213, 0.09509516302823659],
+        c3 = [-4.634230498983486, -5.799100973351585, -19.33244095627987],
+        c4 = [6.228269936347081, 14.17993336680509, 56.69055260068105],
+        c5 = [4.776384997670288, -13.74514537774601, -65.35303263337234],
+        c6 = [-5.435455855934631, 4.645852612178535, 26.3124352495832];
+    var out = [];
+    for (var k = 0; k < 3; k++) out.push(clamp(c0[k] + t * (c1[k] + t * (c2[k] + t * (c3[k] + t * (c4[k] + t * (c5[k] + t * c6[k]))))), 0, 1));
+    return out;
+  }
+  var LUT = new Uint8ClampedArray(768);
+  for (var li = 0; li < 256; li++) { var vc = viridis(li / 255); LUT[3 * li] = vc[0] * 255; LUT[3 * li + 1] = vc[1] * 255; LUT[3 * li + 2] = vc[2] * 255; }
+  (function () {
+    var stops = [];
+    for (var k = 0; k <= 8; k++) { var c = viridis(k / 8); stops.push('rgb(' + Math.round(c[0] * 255) + ',' + Math.round(c[1] * 255) + ',' + Math.round(c[2] * 255) + ') ' + (k * 12.5) + '%'); }
+    document.getElementById('cbar').style.background = 'linear-gradient(90deg,' + stops.join(',') + ')';
+  })();
+
+  function depthScale() { return Math.max(0.3, st.depthTarget * 1.15); }
+
+  function buildDepthImage(src, w, h, pxmm) {
+    if (depC.width !== w || depC.height !== h || !depImg) { depC.width = w; depC.height = h; depImg = depX.createImageData(w, h); }
+    var d = depImg.data, sc = 1 / depthScale(), ex = 1.6;
+    var lx = -0.45, ly = -0.55, lz = 0.70, nl = Math.hypot(lx, ly, lz);
+    lx /= nl; ly /= nl; lz /= nl;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var i = y * w + x, v = src[i];
+        var t = clamp(v * sc, 0, 1), li2 = (t * 255) | 0;
+        var xm = x > 0 ? i - 1 : i, xp = x < w - 1 ? i + 1 : i, ym = y > 0 ? i - w : i, yp = y < h - 1 ? i + w : i;
+        var gx = ex * (src[xp] - src[xm]) / (Math.max(1, xp - xm) * pxmm), gy = ex * (src[yp] - src[ym]) / (Math.max(1, (yp - ym) / w) * pxmm);
+        var q = 1 / Math.sqrt(1 + gx * gx + gy * gy);
+        var dot = (-gx * lx - gy * ly + lz) * q;
+        var shadeF = clamp(1 + 0.9 * (dot - lz), 0.55, 1.18);
+        var o = 4 * i;
+        d[o] = LUT[3 * li2] * shadeF; d[o + 1] = LUT[3 * li2 + 1] * shadeF; d[o + 2] = LUT[3 * li2 + 2] * shadeF; d[o + 3] = 255;
+      }
+    }
+    depX.putImageData(depImg, 0, 0);
+  }
+
+  function arrow(x0, y0, x1, y1, lw, col) {
+    var dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy);
+    if (len < 1.5 * dpr) return;
+    var ux = dx / len, uy = dy / len, hs = Math.min(len * 0.5, 3.4 * dpr + lw * 1.4);
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1 - ux * hs * 0.7, y1 - uy * hs * 0.7); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x1 - ux * hs - uy * hs * 0.55, y1 - uy * hs + ux * hs * 0.55);
+    ctx.lineTo(x1 - ux * hs + uy * hs * 0.55, y1 - uy * hs - ux * hs * 0.55);
+    ctx.closePath(); ctx.fill();
+  }
+  function rampColor(t) {
+    t = clamp(t, 0, 1);
+    var a = [143, 178, 214], b = [42, 87, 133], c = [192, 97, 43], p, q, k;
+    if (t < 0.5) { p = a; q = b; k = t * 2; } else { p = b; q = c; k = (t - 0.5) * 2; }
+    return 'rgb(' + Math.round(p[0] + (q[0] - p[0]) * k) + ',' + Math.round(p[1] + (q[1] - p[1]) * k) + ',' + Math.round(p[2] + (q[2] - p[2]) * k) + ')';
+  }
+  function roundRectPath(x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawMarkerDots(s) {
+    var r = 0.17 * s;
+    ctx.fillStyle = 'rgba(24,28,33,0.8)';
+    ctx.beginPath();
+    for (var k = 0; k < markers.length; k++) {
+      var m = markers[k], x = (m.X + m.ux) * s, y = (m.Y + m.uy) * s;
+      ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 6.2832);
+    }
+    ctx.fill();
+  }
+
+  function drawMarkerField(cw, ch, s) {
+    ctx.globalCompositeOperation = 'saturation';
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, cw, ch);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillRect(0, 0, cw, ch);
+    var k, m;
+    ctx.strokeStyle = 'rgba(102,113,125,0.6)';
+    ctx.lineWidth = Math.max(1, dpr);
+    ctx.beginPath();
+    var rr = 0.13 * s;
+    for (k = 0; k < markers.length; k++) { m = markers[k]; ctx.moveTo(m.X * s + rr, m.Y * s); ctx.arc(m.X * s, m.Y * s, rr, 0, 6.2832); }
+    ctx.stroke();
+    ctx.lineCap = 'round';
+    for (k = 0; k < markers.length; k++) {
+      m = markers[k];
+      var mag = Math.hypot(m.ux, m.uy);
+      if (mag < 0.012) continue;
+      arrow(m.X * s, m.Y * s, (m.X + 3 * m.ux) * s, (m.Y + 3 * m.uy) * s, 1.8 * dpr, rampColor(mag / 0.7));
+    }
+    ctx.fillStyle = '#1f2a37';
+    ctx.beginPath();
+    var rd = 0.11 * s;
+    for (k = 0; k < markers.length; k++) { m = markers[k]; var x = (m.X + m.ux) * s, y = (m.Y + m.uy) * s; ctx.moveTo(x + rd, y); ctx.arc(x, y, rd, 0, 6.2832); }
+    ctx.fill();
+    ctx.lineCap = 'butt';
+  }
+
+  function drawDepth(cw, ch, s) {
+    if (depthSrc === 'recon') buildDepthImage(REC, RW, RH, RPX);
+    else buildDepthImage(WD, W, H, PX);
+    ctx.drawImage(depC, 0, 0, cw, ch);
+
+    // profile through the contact
+    var yRow = clamp(st.lastRowY, PX, FOVY - PX);
+    var yPix = yRow * s;
+    ctx.save();
+    ctx.setLineDash([5 * dpr, 4 * dpr]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 1.2 * dpr;
+    ctx.beginPath(); ctx.moveTo(0, yPix); ctx.lineTo(cw, yPix); ctx.stroke();
+    ctx.restore();
+
+    var bh = Math.round(ch * 0.28), top = yRow < FOVY / 2 ? ch - bh : 0;
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.fillRect(0, top, cw, bh);
+    ctx.fillStyle = 'rgba(31,42,55,0.14)';
+    ctx.fillRect(0, top === 0 ? bh - dpr : top, cw, dpr);
+    var fs = Math.max(10, Math.round(cw / FOVX * 0.42)) ;
+    fs = Math.min(fs, 12 * dpr);
+    var pad = 7 * dpr, y0 = top + pad + fs + 4 * dpr, y1 = top + bh - pad;
+    var sc = depthScale(), vmin = -0.08 * sc, vmax = sc;
+    function my(v) { return y0 + (v - vmin) / (vmax - vmin) * (y1 - y0); }
+    ctx.strokeStyle = 'rgba(102,113,125,0.35)';
+    ctx.lineWidth = dpr;
+    ctx.setLineDash([2 * dpr, 3 * dpr]);
+    ctx.beginPath(); ctx.moveTo(0, my(0)); ctx.lineTo(cw, my(0)); ctx.moveTo(0, my(sc / 1.15)); ctx.lineTo(cw, my(sc / 1.15)); ctx.stroke();
+    ctx.setLineDash([]);
+    var x, rowT = clamp(Math.round(yRow / PX - 0.5), 0, H - 1), rowR = clamp(Math.round(yRow / RPX - 0.5), 0, RH - 1);
+    ctx.strokeStyle = '#1f2a37'; ctx.lineWidth = 1.6 * dpr; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (x = 0; x < W; x++) { var X = (x + 0.5) / W * cw, Y = my(WD[rowT * W + x]); if (x) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); }
+    ctx.stroke();
+    ctx.strokeStyle = '#c0612b'; ctx.lineWidth = 2 * dpr; ctx.setLineDash([5 * dpr, 3 * dpr]);
+    ctx.beginPath();
+    for (x = 0; x < RW; x++) { var X2 = (x + 0.5) / RW * cw, Y2 = my(REC[rowR * RW + x]); if (x) ctx.lineTo(X2, Y2); else ctx.moveTo(X2, Y2); }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.font = '600 ' + fs + 'px ' + FONT;
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#66717d';
+    ctx.textAlign = 'left';
+    ctx.fillText('Profile along the dashed line', pad, top + pad + fs);
+    ctx.textAlign = 'right';
+    var lx = cw - pad, ly = top + pad + fs - fs * 0.35;
+    var t2 = 'reconstructed', w2 = ctx.measureText(t2).width;
+    ctx.fillText(t2, lx, top + pad + fs);
+    ctx.strokeStyle = '#c0612b'; ctx.lineWidth = 2 * dpr; ctx.setLineDash([4 * dpr, 2.5 * dpr]);
+    ctx.beginPath(); ctx.moveTo(lx - w2 - 22 * dpr, ly); ctx.lineTo(lx - w2 - 5 * dpr, ly); ctx.stroke(); ctx.setLineDash([]);
+    var t1 = 'true', x1 = lx - w2 - 32 * dpr, w1 = ctx.measureText(t1).width;
+    ctx.fillText(t1, x1, top + pad + fs);
+    ctx.strokeStyle = '#1f2a37'; ctx.lineWidth = 1.6 * dpr;
+    ctx.beginPath(); ctx.moveTo(x1 - w1 - 20 * dpr, ly); ctx.lineTo(x1 - w1 - 5 * dpr, ly); ctx.stroke();
+    ctx.textAlign = 'left';
+  }
+
+  function drawCursor(s) {
+    if (demo.active && st.pressed) {
+      var x = st.pos.x * s, y = st.pos.y * s, r = 0.55 * s;
+      ctx.lineWidth = 2.5 * dpr; ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.stroke();
+      ctx.lineWidth = 1.2 * dpr; ctx.strokeStyle = 'rgba(31,42,55,0.85)';
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.stroke();
+      return;
+    }
+    if (!hover.on || st.pressed || demo.active || st.d > 0.02) return;
+    var dT = st.depthTarget;
+    ctx.save();
+    ctx.translate(hover.x * s, hover.y * s);
+    ctx.rotate(st.rotDeg * Math.PI / 180);
+    ctx.beginPath();
+    if (st.shape === 'sphere') { ctx.arc(0, 0, Math.sqrt(2 * SPHERE_R * dT - dT * dT) * s, 0, 6.2832); }
+    else if (st.shape === 'cylinder') { var hw = Math.sqrt(Math.max(0.05, 2 * ROD_R * Math.min(dT, ROD_R) - Math.min(dT, ROD_R) * Math.min(dT, ROD_R))) * s; roundRectPath(-ROD_HL * s, -hw, 2 * ROD_HL * s, 2 * hw, hw * 0.6); }
+    else if (st.shape === 'cube') { roundRectPath(-CUBE_HALF * s, -CUBE_HALF * s, 2 * CUBE_HALF * s, 2 * CUBE_HALF * s, 0.5 * s); }
+    else if (st.shape === 'screw') { ctx.arc(0, 0, SCREW_R * s, 0, 6.2832); }
+    else { roundRectPath(-STAMP_HALF * s, -STAMP_HALF * s, 2 * STAMP_HALF * s, 2 * STAMP_HALF * s, 0.6 * s); }
+    ctx.lineWidth = 3 * dpr; ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.stroke();
+    ctx.setLineDash([4 * dpr, 3 * dpr]); ctx.lineWidth = 1.2 * dpr; ctx.strokeStyle = 'rgba(31,42,55,0.85)'; ctx.stroke();
+    ctx.restore();
+  }
+
+  var imgDirty = true;
+  function draw() {
+    var cw = cv.width, ch = cv.height;
+    if (!cw || !ch) return;
+    var s = cw / FOVX;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.setLineDash([]);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    if (view === 'depth') {
+      drawDepth(cw, ch, s);
+    } else {
+      if (imgDirty) { simX.putImageData(img, 0, 0); imgDirty = false; }
+      ctx.drawImage(simC, 0, 0, cw, ch);
+      if (view === 'raw') { if (showMarkers) drawMarkerDots(s); }
+      else drawMarkerField(cw, ch, s);
+    }
+    drawCursor(s);
+  }
+
+  /* =====================================================================
+     Readouts
+     ===================================================================== */
+  var ro = {
+    area: document.getElementById('ro-area'), fn: document.getElementById('ro-fn'), ft: document.getElementById('ro-ft'),
+    t: document.getElementById('ro-t'), state: document.getElementById('ro-state'), peak: document.getElementById('peak')
+  };
+  var lastRO = 0, roText = '';
+  function updateReadouts(now, force) {
+    if (!force && now - lastRO < 90) return;
+    lastRO = now;
+    var Dx = st.pos.x - st.anchor.x, Dy = st.pos.y - st.anchor.y;
+    phys.Ft = phys.Kt * Math.hypot(Dx, Dy);
+    phys.T = phys.Kr * (st.twist - st.twistAnchor);
+    var slipping = hasContact && now - st.slipT < 220;
+    var a = hasContact ? phys.area.toFixed(phys.area < 99.95 ? 1 : 0) + ' mm²' : '–';
+    var fn = hasContact ? phys.Fn.toFixed(2) + ' N' : '–';
+    var ft = hasContact ? phys.Ft.toFixed(2) + ' N' : '–';
+    var tq = Math.abs(phys.T);
+    var t = hasContact ? tq.toFixed(tq < 9.995 ? 2 : 1) + ' N·mm' : '–';
+    var s = hasContact ? (slipping ? 'slipping' : 'sticking') : 'no contact';
+    var pk = view === 'depth' ? (hasContact ? 'Peak: true ' + phys.peak.toFixed(2) + ' mm, reconstructed ' + reconPeak.toFixed(2) + ' mm' : 'Peak: –') : '';
+    var key = a + fn + ft + t + s + pk;
+    if (key === roText) return;
+    roText = key;
+    ro.area.textContent = a; ro.fn.textContent = fn; ro.ft.textContent = ft; ro.t.textContent = t;
+    ro.state.textContent = s; ro.state.classList.toggle('slip', slipping);
+    ro.peak.textContent = pk;
+  }
+
+  /* =====================================================================
+     Main loop (runs only while something changes)
+     ===================================================================== */
+  var raf = 0, lastT = 0, lastSimKey = '', prevSimKey = '', lastDrawKey = '', reconKey = '', lastRecon = 0, forceDraw = true;
+  function request() { if (!raf) raf = requestAnimationFrame(frame); }
+
+  function simKey() {
+    return [st.shape, shapeVersion, st.d.toFixed(5), st.pos.x.toFixed(4), st.pos.y.toFixed(4),
+      st.anchor.x.toFixed(4), st.anchor.y.toFixed(4), theta().toFixed(5), st.twistAnchor.toFixed(5)].join('|');
+  }
+
+  function frame(now) {
+    raf = 0;
+    var dt = lastT ? Math.min(0.05, (now - lastT) / 1000) : 0.016;
+    lastT = now;
+    if (demo.active && demo.visible && !document.hidden) demoStep(now);
+
+    var goal = st.pressed ? st.depthTarget : 0, tau = st.pressed ? 0.07 : 0.11;
+    st.d += (goal - st.d) * (1 - Math.exp(-dt / tau));
+    if (Math.abs(st.d - goal) < 2e-4) st.d = goal;
+    if (!st.pressed && st.d < 3e-3) st.d = 0;
+    if (!st.pressed && st.d === 0) st.twist = 0;
+
+    limitShear(now);
+    var sk = simKey();
+    if (sk !== lastSimKey) {
+      simulate();
+      updateMarkers();
+      shade();
+      if (hasContact) st.lastRowY = st.pos.y;
+      imgDirty = true;
+      lastSimKey = sk;
+    }
+    // the reconstruction is the costly step: refresh it at ~20 Hz while things move
+    if (view === 'depth' && reconKey !== sk && (now - lastRecon > 45 || sk === prevSimKey)) { reconstruct(); reconKey = sk; lastRecon = now; }
+    prevSimKey = sk;
+
+    var dk = sk + '|' + reconKey + '|' + view + showMarkers + depthSrc + st.depthTarget + st.rotDeg + cv.width + '|' +
+      (hover.on ? hover.x.toFixed(3) + ',' + hover.y.toFixed(3) : '-') + demo.active + st.pressed;
+    if (dk !== lastDrawKey || forceDraw) { draw(); lastDrawKey = dk; forceDraw = false; }
+    updateReadouts(now, false);
+
+    var busy = (demo.active && demo.visible && !document.hidden) || st.pressed || st.d > 0 || now - st.slipT < 400 ||
+      (view === 'depth' && reconKey !== lastSimKey);
+    if (busy) request();
+    else { lastT = 0; updateReadouts(now, true); }
+  }
+
+  /* =====================================================================
+     Auto demo: loops while visible until the first press
+     ===================================================================== */
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var demo = { active: !reduceMotion, cycle: true, t0: 0, loop: -1, dir: 1, visible: true };
+  var DEMO_SHAPES = ['sphere', 'screw', 'cylinder', 'letter', 'cube'];
+  var hint = document.getElementById('hint');
+
+  function demoStep(now) {
+    if (!demo.t0) demo.t0 = now;
+    var T = 5.2, t = (now - demo.t0) / 1000, loop = Math.floor(t / T), tt = t - loop * T;
+    if (loop !== demo.loop) {
+      demo.loop = loop;
+      demo.dir = loop % 2 ? -1 : 1;
+      if (demo.cycle && loop > 0) setShape(DEMO_SHAPES[loop % DEMO_SHAPES.length], true);
+    }
+    var dir = demo.dir, m = sstep(1.1, 2.7, tt);
+    st.pos.x = FOVX / 2 - 3.2 * dir + 6.4 * dir * m;
+    st.pos.y = FOVY / 2 - 0.4 - 0.9 * Math.sin(Math.PI * m);
+    var down = tt > 0.45 && tt < 3.65;
+    if (down && !st.pressed) beginPress();
+    if (!down && st.pressed) endPress();
+    if (st.pressed) st.twist = 0.32 * dir * sstep(2.85, 3.45, tt);
+    hint.classList.toggle('top', st.pos.y > FOVY * 0.62);
+  }
+  function stopDemo() {
+    if (!demo.active) return;
+    demo.active = false;
+    if (st.pressed) endPress();
+    st.twist = 0; st.twistAnchor = 0;
+    hint.classList.add('gone');
+  }
+
+  function beginPress() {
+    st.pressed = true;
+    st.anchor.x = st.pos.x; st.anchor.y = st.pos.y;
+    st.twist = 0; st.twistAnchor = 0;
+  }
+  function endPress() { st.pressed = false; }
+
+  /* =====================================================================
+     Input
+     ===================================================================== */
+  var activeId = null;
+  function toMM(e) {
+    var r = cv.getBoundingClientRect();
+    return { x: clamp((e.clientX - r.left) / r.width * FOVX, -1, FOVX + 1), y: clamp((e.clientY - r.top) / r.height * FOVY, -1, FOVY + 1) };
+  }
+  cv.addEventListener('pointerdown', function (e) {
+    if (activeId !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    stopDemo();
+    activeId = e.pointerId;
+    try { cv.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    var p = toMM(e);
+    st.pos.x = p.x; st.pos.y = p.y;
+    hover.on = false;
+    beginPress();
+    try { cv.focus({ preventScroll: true }); } catch (err) { /* ignore */ }
+    e.preventDefault();
+    request();
+  });
+  cv.addEventListener('pointermove', function (e) {
+    var p = toMM(e);
+    if (e.pointerId === activeId) { st.pos.x = p.x; st.pos.y = p.y; request(); }
+    else if (activeId === null && e.pointerType === 'mouse') { hover.on = true; hover.x = p.x; hover.y = p.y; request(); }
+  });
+  function release(e) {
+    if (e.pointerId !== activeId) return;
+    activeId = null;
+    endPress();
+    if (e.pointerType === 'mouse' && e.type === 'pointerup') { var p = toMM(e); hover.on = true; hover.x = p.x; hover.y = p.y; }
+    request();
+  }
+  cv.addEventListener('pointerup', release);
+  cv.addEventListener('pointercancel', release);
+  cv.addEventListener('pointerleave', function () { if (hover.on) { hover.on = false; request(); } });
+  cv.addEventListener('contextmenu', function (e) { if (st.pressed) e.preventDefault(); });
+  cv.addEventListener('wheel', function (e) {
+    if (!st.pressed || demo.active) return;
+    e.preventDefault();
+    var dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+    st.twist = clamp(st.twist + dy * 0.0015, -1.2, 1.2);
+    request();
+  }, { passive: false });
+  cv.addEventListener('keydown', function (e) {
+    var k = e.key, used = true, step = e.shiftKey ? 1 : 0.3;
+    if (k === ' ' || k === 'Enter') { stopDemo(); if (st.pressed) endPress(); else beginPress(); }
+    else if (k === 'Escape') { if (st.pressed) endPress(); else used = false; }
+    else if (k === 'ArrowLeft') st.pos.x = clamp(st.pos.x - step, 0, FOVX);
+    else if (k === 'ArrowRight') st.pos.x = clamp(st.pos.x + step, 0, FOVX);
+    else if (k === 'ArrowUp') st.pos.y = clamp(st.pos.y - step, 0, FOVY);
+    else if (k === 'ArrowDown') st.pos.y = clamp(st.pos.y + step, 0, FOVY);
+    else if (k === 'q' || k === 'Q') { if (st.pressed) st.twist = clamp(st.twist - 0.06, -1.2, 1.2); }
+    else if (k === 'e' || k === 'E') { if (st.pressed) st.twist = clamp(st.twist + 0.06, -1.2, 1.2); }
+    else used = false;
+    if (used) { e.preventDefault(); if (demo.active) stopDemo(); request(); }
+  });
+
+  // ---------- controls ----------
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+  var legendItems = Array.prototype.slice.call(document.querySelectorAll('.legend-item'));
+  function setView(v) {
+    view = v;
+    tabs.forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.view === v)); b.tabIndex = b.dataset.view === v ? 0 : -1; });
+    legendItems.forEach(function (el) { el.hidden = el.dataset.for !== v; });
+    forceDraw = true; roText = '';
+    request();
+    updateReadoutsSoon();
+  }
+  tabs.forEach(function (b, idx) {
+    b.addEventListener('click', function () { setView(b.dataset.view); });
+    b.addEventListener('keydown', function (e) {
+      var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (!d) return;
+      var nb = tabs[(idx + d + tabs.length) % tabs.length];
+      nb.focus(); setView(nb.dataset.view); e.preventDefault();
+    });
+  });
+
+  var shapeBtns = Array.prototype.slice.call(document.querySelectorAll('.shape'));
+  var letterRow = document.getElementById('letter-row'), letterIn = document.getElementById('letter');
+  var rotIn = document.getElementById('rot'), rotOut = document.getElementById('rot-out');
+  function setShape(name, fromDemo) {
+    if (!fromDemo) demo.cycle = false;
+    if (st.shape === name && !fromDemo) return;
+    st.shape = name;
+    shapeBtns.forEach(function (b) { var on = b.dataset.shape === name; b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1; });
+    letterRow.hidden = name !== 'letter';
+    rotIn.disabled = name === 'sphere';
+    buildStamp();
+    request();
+    postHeight();
+  }
+  shapeBtns.forEach(function (b, idx) {
+    b.addEventListener('click', function () { setShape(b.dataset.shape, false); });
+    b.addEventListener('keydown', function (e) {
+      var d = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1 : (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -1 : 0;
+      if (!d) return;
+      var nb = shapeBtns[(idx + d + shapeBtns.length) % shapeBtns.length];
+      nb.focus(); setShape(nb.dataset.shape, false); e.preventDefault();
+    });
+  });
+  letterIn.addEventListener('input', function () {
+    st.text = letterIn.value;
+    if (st.shape === 'letter') { buildStamp(); request(); }
+  });
+
+  var depthIn = document.getElementById('depth'), depthOut = document.getElementById('depth-out'), cbarMax = document.getElementById('cbar-max');
+  function onDepth() {
+    st.depthTarget = parseFloat(depthIn.value);
+    depthOut.textContent = st.depthTarget.toFixed(2) + ' mm';
+    cbarMax.textContent = depthScale().toFixed(2) + ' mm';
+    request();
+  }
+  depthIn.addEventListener('input', onDepth);
+  rotIn.addEventListener('input', function () {
+    st.rotDeg = parseFloat(rotIn.value);
+    rotOut.textContent = Math.round(st.rotDeg) + '°';
+    request();
+  });
+  document.getElementById('show-markers').addEventListener('change', function (e) { showMarkers = e.target.checked; request(); });
+  Array.prototype.slice.call(document.querySelectorAll('.seg button')).forEach(function (b, _, all) {
+    b.addEventListener('click', function () {
+      depthSrc = b.dataset.src;
+      all.forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+      request();
+    });
+  });
+
+  var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  if (coarse) {
+    document.getElementById('tip').textContent = 'Drag while pressing to shear the gel; lift your finger and it springs back. Set the rotation before pressing.';
+    hint.textContent = 'Press & drag on the gel';
+  }
+  if (reduceMotion) hint.textContent = 'Press & drag on the gel';
+
+  function updateReadoutsSoon() { setTimeout(function () { updateReadouts(performance.now(), true); }, 30); }
+
+  // ---------- sizing & visibility ----------
+  function resize() {
+    var r = wrap.getBoundingClientRect();
+    dpr = Math.min(2.5, window.devicePixelRatio || 1);
+    var w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; forceDraw = true; }
+    var sb = document.getElementById('scalebar');
+    sb.style.width = (0.5 * 3 * r.width / FOVX).toFixed(1) + 'px';
+    request();
+  }
+  if (window.ResizeObserver) {
+    new ResizeObserver(resize).observe(wrap);
+    new ResizeObserver(postHeight).observe(document.body);
+  } else {
+    window.addEventListener('resize', function () { resize(); postHeight(); });
+  }
+  window.addEventListener('load', postHeight);
+  if (window.IntersectionObserver) {
+    new IntersectionObserver(function (entries) {
+      demo.visible = entries[0].isIntersecting;
+      if (demo.visible) request();
+    }, { threshold: 0.05 }).observe(wrap);
+  }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) request(); });
+
+  buildStamp();
+  onDepth();
+  resize();
+  postHeight();
+  request();
+})();
+</script>
+</body>
+</html>

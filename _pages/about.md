@@ -43,6 +43,20 @@ Each generation of my doctoral work tackled a different bottleneck: the illumina
   </a>
 </div>
 
+## Interactive demo
+
+<div class="demo-wrap">
+  <a class="demo-card" href="/demo/">
+    <img src="/images/research/demo-thumb.jpg" alt="Simulated tactile image of a screw head pressed into the gel">
+    <span class="hl-body">
+      <span class="hl-tag">Runs in your browser</span>
+      <span class="demo-title">Press a simulated GelSight-type sensor</span>
+      <span class="hl-text">Push a sphere, a screw head or your own letters into the gel and see the colored tactile image, the depth map recovered from it, and the marker displacement field.</span>
+      <span class="demo-go">Open the demo &rarr;</span>
+    </span>
+  </a>
+</div>
+
 ## Milestones
 
 <ul class="news">

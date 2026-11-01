@@ -21,3 +21,4 @@ I designed and fabricated a visuotactile sensor based on GelSight, introduced by
 - [Fabrication guide](https://www.notion.so/How-to-Make-a-Gelsight-Sensor-c051c668869e445690964c401197c212)
 - [Control code](https://github.com/Photon26/Gelsight_controller)
 - [Video of the sensor](https://youtu.be/8iJOCnbx6as)
+- [Interactive simulation of the sensing principle](/demo/), in your browser
