@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GelSight 物理仿真</title>
+<title>GelSight Physics Simulator</title>
 <style>
   :root {
     --ink: #1f2a37; --text: #3d4651; --muted: #66717d; --rule: #e3e7ec; --soft: #f5f7f9; --accent: #2a5785;
@@ -19,6 +19,9 @@
   .top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 12px 18px; border-bottom: 1px solid var(--rule); }
   .top h1 { font-size: 17px; font-weight: 700; margin-right: auto; }
   .top h1 small { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 8px; }
+  .top h1 .back { display: block; margin-bottom: 2px; font-size: 12px; font-weight: 400; color: var(--accent); text-decoration: none; }
+  .top h1 .back:hover { text-decoration: underline; }
+  #lang button { font-size: 12px; padding: 3px 10px; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .chip { padding: 3px 10px; border: 1px solid var(--rule); border-radius: 999px; background: #fff; cursor: pointer; font-size: 12.5px; color: var(--muted); }
   .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -54,7 +57,7 @@
   .kv label { font-size: 13px; color: var(--text); white-space: nowrap; }
   .kv input[type=range] { width: 100%; accent-color: var(--accent); }
   .kv output { font-family: var(--mono); font-size: 12.5px; min-width: 6.5em; text-align: right; color: var(--ink); }
-  .readouts { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); margin-top: 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--soft); }
+  .readouts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); margin-top: 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--soft); }
   .readouts div { padding: 5px 9px; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
   .readouts dt { font-size: 11px; color: var(--muted); }
   .readouts dd { margin: 0; font-family: var(--mono); font-size: 13px; color: var(--ink); white-space: nowrap; }
@@ -121,53 +124,54 @@
 </head>
 <body>
 <header class="top">
-  <h1>GelSight 类视触觉传感器 · 物理仿真<small>纯颜色（无 marker）· 透明硅胶 + 反光涂层 + 侧面多色 LED</small></h1>
+  <h1><a class="back" id="back" href="/demo/" data-zh="← 交互演示" data-en="← Interactive demo">← Interactive demo</a><span data-zh="GelSight 类视触觉传感器 · 物理仿真" data-en="GelSight-type tactile sensor · physics simulator">GelSight-type tactile sensor · physics simulator</span><small data-zh="纯颜色（无 marker）· 透明硅胶 + 反光涂层 + 侧面多色 LED" data-en="colour only (no markers) · clear silicone + reflective coating + side-lit multicolour LEDs">colour only (no markers) · clear silicone + reflective coating + side-lit multicolour LEDs</small></h1>
   <div class="chips" id="chips"></div>
+  <span class="seg" id="lang" role="group" aria-label="Language / 语言"><button data-lang="en" aria-pressed="true">EN</button><button data-lang="zh" aria-pressed="false" lang="zh-CN">中文</button></span>
 </header>
 <main class="layout">
-  <section class="viewer" aria-label="仿真视图">
+  <section class="viewer" aria-label="Simulation view">
     <div class="tabs" role="tablist">
-      <button class="tab" role="tab" aria-selected="true" data-view="cam">相机图像</button>
-      <button class="tab" role="tab" aria-selected="false" data-view="diff">差分</button>
-      <button class="tab" role="tab" aria-selected="false" data-view="height">高度</button>
-      <button class="tab" role="tab" aria-selected="false" data-view="normal">法向</button>
-      <button class="tab" role="tab" aria-selected="false" data-view="pressure">压力</button>
+      <button class="tab" role="tab" aria-selected="true" data-view="cam" data-zh="相机图像" data-en="Camera image">Camera image</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="diff" data-zh="差分" data-en="Difference">Difference</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="height" data-zh="高度" data-en="Height">Height</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="normal" data-zh="法向" data-en="Normals">Normals</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="pressure" data-zh="压力" data-en="Pressure">Pressure</button>
     </div>
     <div class="canvas-wrap" id="wrap">
-      <canvas id="view" tabindex="0" aria-label="传感器表面：按下压入，拖动移动，滚轮旋转"></canvas>
+      <canvas id="view" tabindex="0" aria-label="Sensor surface: press to indent, drag to move, scroll to rotate"></canvas>
       <div class="hud" id="hud"></div>
-      <div class="busy" id="busy">求解中…</div>
+      <div class="busy" id="busy" data-zh="求解中…" data-en="Solving…">Solving…</div>
     </div>
     <div class="legend" id="legend"></div>
     <div class="row">
-      <span>对比 A/B：</span>
-      <button class="btn" id="snapA">当前存为 A</button>
-      <span class="seg" id="abmode"><button data-ab="off" aria-pressed="true">关</button><button data-ab="split" aria-pressed="false">A｜当前</button><button data-ab="diff" aria-pressed="false">|当前−A|×4</button></span>
-      <input type="range" id="split" min="0" max="1" step="0.01" value="0.5" class="grow" aria-label="分屏位置" disabled>
-      <span class="msg" id="aInfo">未存 A</span>
+      <span data-zh="对比 A/B：" data-en="Compare A/B:">Compare A/B:</span>
+      <button class="btn" id="snapA" data-zh="当前存为 A" data-en="Store current as A">Store current as A</button>
+      <span class="seg" id="abmode"><button data-ab="off" aria-pressed="true" data-zh="关" data-en="Off">Off</button><button data-ab="split" aria-pressed="false" data-zh="A｜当前" data-en="A | current">A | current</button><button data-ab="diff" aria-pressed="false" data-zh="|当前−A|×4" data-en="|current − A| × 4">|current − A| × 4</button></span>
+      <input type="range" id="split" min="0" max="1" step="0.01" value="0.5" class="grow" aria-label="Split position" disabled>
+      <span class="msg" id="aInfo" data-zh="未存 A" data-en="No A stored">No A stored</span>
     </div>
     <div class="row">
-      <span>压头：</span>
+      <span data-zh="压头：" data-en="Indenter:">Indenter:</span>
       <span class="shapes" id="shapes" role="radiogroup">
-        <button class="shape" role="radio" aria-checked="true" data-shape="sphere">球</button>
-        <button class="shape" role="radio" aria-checked="false" data-shape="cylinder">圆柱(横放)</button>
-        <button class="shape" role="radio" aria-checked="false" data-shape="cube">方块</button>
-        <button class="shape" role="radio" aria-checked="false" data-shape="screw">螺丝头</button>
-        <button class="shape" role="radio" aria-checked="false" data-shape="letter">字母</button>
+        <button class="shape" role="radio" aria-checked="true" data-shape="sphere" data-zh="球" data-en="Sphere">Sphere</button>
+        <button class="shape" role="radio" aria-checked="false" data-shape="cylinder" data-zh="圆柱(横放)" data-en="Cylinder (lying)">Cylinder (lying)</button>
+        <button class="shape" role="radio" aria-checked="false" data-shape="cube" data-zh="方块" data-en="Cube">Cube</button>
+        <button class="shape" role="radio" aria-checked="false" data-shape="screw" data-zh="螺丝头" data-en="Screw head">Screw head</button>
+        <button class="shape" role="radio" aria-checked="false" data-shape="letter" data-zh="字母" data-en="Letters">Letters</button>
       </span>
-      <input type="text" id="letter" value="R" maxlength="3" size="4" aria-label="字母压头文字" style="width:4em;padding:2px 6px;border:1px solid #d3d9df;border-radius:4px" hidden>
+      <input type="text" id="letter" value="R" maxlength="3" size="4" aria-label="Letters" style="width:4em;padding:2px 6px;border:1px solid #d3d9df;border-radius:4px" hidden>
     </div>
     <div class="kv" id="indKV"></div>
     <div class="row">
-      <label><input type="checkbox" id="hold" checked> 松开后保持按压</label>
-      <button class="btn" id="lift">抬起 <kbd>Esc</kbd></button>
-      <span class="msg">按下＝压入，拖动＝移动，滚轮 / <kbd>Q</kbd><kbd>E</kbd>＝旋转</span>
+      <label><input type="checkbox" id="hold" checked> <span data-zh="松开后保持按压" data-en="Keep pressed after release">Keep pressed after release</span></label>
+      <button class="btn" id="lift" data-zh="抬起 &lt;kbd&gt;Esc&lt;/kbd&gt;" data-en="Lift &lt;kbd&gt;Esc&lt;/kbd&gt;">Lift <kbd>Esc</kbd></button>
+      <span class="msg" data-zh="按下＝压入，拖动＝移动，滚轮 / &lt;kbd&gt;Q&lt;/kbd&gt;&lt;kbd&gt;E&lt;/kbd&gt;＝旋转" data-en="Press = indent, drag = move, scroll / &lt;kbd&gt;Q&lt;/kbd&gt;&lt;kbd&gt;E&lt;/kbd&gt; = rotate">Press = indent, drag = move, scroll / <kbd>Q</kbd><kbd>E</kbd> = rotate</span>
     </div>
     <dl class="readouts" id="ro"></dl>
   </section>
 
   <aside class="panel" id="panel">
-    <div class="flags-legend">参数来源：<span class="flag repo">仓库</span> 取自你的 Gelsight_controller <span class="flag lit">文献</span> 典型文献 / 手册值 <span class="flag guess">⚠ 待确认</span> 合理默认值，请换成你的实测</div>
+    <div class="flags-legend" data-zh="参数来源：&lt;span class=&quot;flag repo&quot;&gt;仓库&lt;/span&gt; 取自作者的 Gelsight_controller 仓库 &lt;span class=&quot;flag lit&quot;&gt;文献&lt;/span&gt; 典型文献 / 手册值 &lt;span class=&quot;flag guess&quot;&gt;⚠ 待确认&lt;/span&gt; 合理默认值，请换成实测值" data-en="Parameter sources: &lt;span class=&quot;flag repo&quot;&gt;repo&lt;/span&gt; from the author's Gelsight_controller repository &lt;span class=&quot;flag lit&quot;&gt;lit&lt;/span&gt; typical literature / datasheet value &lt;span class=&quot;flag guess&quot;&gt;⚠ assumed&lt;/span&gt; reasonable default, replace with measured values"></div>
   </aside>
 </main>
 <script>
@@ -600,10 +604,10 @@ var GS = (function () {
     }
     var st = this.stats;
     st.F = F * h * h; st.Fel = Fel * h * h; st.A = A * h * h; st.umax = umax; st.iters = S.iters; st.err = S.err;
-    // B-spline coefficients of the total displacement for smooth up-sampling
-    var c = this.coef; c.set(tot);
-    for (j = 0; j < n; j++) bsplinePrefilter1D(c, j * n, 1, n);
-    for (i = 0; i < n; i++) bsplinePrefilter1D(c, i, n, n);
+    // Approximating cubic B-spline (no interpolation prefilter): C2-smooth and, because the basis is
+    // non-negative, free of the grid-aligned ringing an interpolating spline shows at sharp contact edges.
+    // Inside the contact the exact indenter shape is restored by the max() with the fine-grid indenter.
+    this.coef.set(tot);
     return st;
   };
   /* Release: no contact, only the delayed (viscoelastic) part remains. */
@@ -615,10 +619,7 @@ var GS = (function () {
     for (i = 0; i < N; i++) { v[i] *= a; if (Math.abs(v[i]) > 2e-4) any = true; if (v[i] > umax) umax = v[i]; }
     if (!any) v.fill(0);
     this.total.set(v);
-    var c = this.coef; c.set(v);
-    var n = S.n;
-    for (var j = 0; j < n; j++) bsplinePrefilter1D(c, j * n, 1, n);
-    for (i = 0; i < n; i++) bsplinePrefilter1D(c, i, n, n);
+    this.coef.set(v);
     var st = this.stats; st.F = 0; st.Fel = 0; st.A = 0; st.umax = umax; st.iters = 0; st.err = 0;
     return any;
   };
@@ -1380,9 +1381,9 @@ var GS = (function () {
 <script>
 /* =====================================================================
    Parameters: defaults + UI schema.
-   flag: 'repo'  = taken from your Gelsight_controller repo
+   flag: 'repo'  = taken from the author's Gelsight_controller repo
          'lit'   = literature / datasheet-typical value
-         'guess' = reasonable guess, please replace with your sensor's value
+         'guess' = reasonable guess, replace with measured values
    ===================================================================== */
 var GSP = (function () {
   'use strict';
@@ -1410,88 +1411,88 @@ var GSP = (function () {
   /* UI rows. type: 'num' (slider+box), 'bool', 'select' */
   var S = {
     sensor: [
-      { k: 'fovW', label: '视场宽度', unit: 'mm', min: 10, max: 40, step: 0.5, flag: 'repo', note: '你的 calibrate_gelsight.py: Pixmm = 10/485×2 ≈ 0.041 mm/px，640 px ≈ 26 mm（含边缘）；取有效区约 24 mm。视场高 = 宽 × 3/4。' },
-      { k: 'tGel', label: '胶体厚度 t', unit: 'mm', min: 0.5, max: 6, step: 0.1, flag: 'guess' },
-      { k: 'tAcr', label: '亚克力厚度', unit: 'mm', min: 0.5, max: 8, step: 0.1, flag: 'guess' }
+      { k: 'fovW', label: '视场宽度', en: 'Field of view (width)', noteEn: 'From the author\'s calibrate_gelsight.py: Pixmm = 10/485×2 ≈ 0.041 mm/px, so 640 px ≈ 26 mm including the border; the usable area is about 24 mm. Height = width × 3/4.', unit: 'mm', min: 10, max: 40, step: 0.5, flag: 'repo', note: '作者的 calibrate_gelsight.py：Pixmm = 10/485×2 ≈ 0.041 mm/px，640 px ≈ 26 mm（含边缘）；取有效区约 24 mm。视场高 = 宽 × 3/4。' },
+      { k: 'tGel', label: '胶体厚度 t', en: 'Gel thickness t', unit: 'mm', min: 0.5, max: 6, step: 0.1, flag: 'guess' },
+      { k: 'tAcr', label: '亚克力厚度', en: 'Acrylic thickness', unit: 'mm', min: 0.5, max: 8, step: 0.1, flag: 'guess' }
     ],
     f1: [
-      { k: 'spec', label: '镜面高光 (GGX)', type: 'bool' },
-      { k: 'shadow', label: '投射阴影 / 自遮挡', type: 'bool' },
-      { k: 'rhoD', label: '漫反射率 ρd', unit: '', min: 0, max: 1, step: 0.01, flag: 'guess', note: '铝粉/银粉半镜面涂层的典型值' },
-      { k: 'ks', label: '镜面权重 ks', unit: '', min: 0, max: 1, step: 0.01, flag: 'guess' },
-      { k: 'alpha', label: '粗糙度 α (GGX)', unit: '', min: 0.03, max: 1, step: 0.01, flag: 'guess', note: 'α 越小高光越尖锐；朗伯近似 ≈ ks=0' }
+      { k: 'spec', label: '镜面高光 (GGX)', en: 'Specular highlights (GGX)', type: 'bool' },
+      { k: 'shadow', label: '投射阴影 / 自遮挡', en: 'Cast shadows / self-occlusion', type: 'bool' },
+      { k: 'rhoD', label: '漫反射率 ρd', en: 'Diffuse albedo ρd', noteEn: 'Typical of an aluminium- or silver-powder semi-specular coating', unit: '', min: 0, max: 1, step: 0.01, flag: 'guess', note: '铝粉/银粉半镜面涂层的典型值' },
+      { k: 'ks', label: '镜面权重 ks', en: 'Specular weight ks', unit: '', min: 0, max: 1, step: 0.01, flag: 'guess' },
+      { k: 'alpha', label: '粗糙度 α (GGX)', en: 'Roughness α (GGX)', noteEn: 'Smaller α gives sharper highlights; ks = 0 is Lambertian', unit: '', min: 0.03, max: 1, step: 0.01, flag: 'guess', note: 'α 越小高光越尖锐；朗伯近似 ≈ ks=0' }
     ],
     f2: [
-      { k: 'E', label: '杨氏模量 E', unit: 'MPa', min: 0.02, max: 2, step: 0.01, flag: 'guess', note: '邵氏 00-30 ≈ 0.07 MPa，邵氏 A10–A20 ≈ 0.3–0.6 MPa。位移控制下 E 只改变力，不改变形状。' },
-      { k: 'nu', label: '泊松比 ν', unit: '', min: 0.3, max: 0.4999, step: 0.001, flag: 'lit', note: '硅胶近不可压，ν→0.5 时压痕体积全部转为周围鼓起' },
-      { k: 'plate', label: '涂层弯曲刚度 (细节抹平)', type: 'bool' },
-      { k: 'Ec', label: '涂层模量 Ec', unit: 'MPa', min: 0.1, max: 20, step: 0.1, flag: 'guess' },
-      { k: 'tc', label: '涂层厚度 tc', unit: 'mm', min: 0.005, max: 0.3, step: 0.005, flag: 'guess' },
-      { k: 'hyper', label: '超弹性刚化 (neo-Hookean, 只修正力)', type: 'bool' },
-      { k: 'visco', label: '粘弹性 (蠕变 / 迟滞)', type: 'bool' },
-      { k: 'vr', label: '松弛强度 r = E0/E∞ − 1', unit: '', min: 0, max: 2, step: 0.01, flag: 'guess' },
-      { k: 'vtau', label: '时间常数 τ', unit: 's', min: 0.1, max: 10, step: 0.1, flag: 'guess' },
-      { k: 'grid', label: '求解网格', type: 'select', options: [[0.3, '0.30 mm · 128² · 快'], [0.15, '0.15 mm · 256² · 精']] },
-      { k: 'iters', label: '每帧迭代上限', unit: '', min: 1, max: 40, step: 1, note: '交互时逐帧继续迭代直到收敛（渐进细化）' },
-      { k: 'control', label: '加载方式', type: 'select', options: [['depth', '压深控制'], ['force', '力控制']] }
+      { k: 'E', label: '杨氏模量 E', en: 'Young\'s modulus E', noteEn: 'Shore 00-30 ≈ 0.07 MPa, Shore A10–A20 ≈ 0.3–0.6 MPa. Under depth control E changes only the force, not the shape.', unit: 'MPa', min: 0.02, max: 2, step: 0.01, flag: 'guess', note: '邵氏 00-30 ≈ 0.07 MPa，邵氏 A10–A20 ≈ 0.3–0.6 MPa。位移控制下 E 只改变力，不改变形状。' },
+      { k: 'nu', label: '泊松比 ν', en: 'Poisson\'s ratio ν', noteEn: 'Silicone is nearly incompressible; as ν→0.5 the indented volume reappears entirely as the surrounding bulge', unit: '', min: 0.3, max: 0.4999, step: 0.001, flag: 'lit', note: '硅胶近不可压，ν→0.5 时压痕体积全部转为周围鼓起' },
+      { k: 'plate', label: '涂层弯曲刚度 (细节抹平)', en: 'Coating bending stiffness (smooths detail)', type: 'bool' },
+      { k: 'Ec', label: '涂层模量 Ec', en: 'Coating modulus Ec', unit: 'MPa', min: 0.1, max: 20, step: 0.1, flag: 'guess' },
+      { k: 'tc', label: '涂层厚度 tc', en: 'Coating thickness tc', unit: 'mm', min: 0.005, max: 0.3, step: 0.005, flag: 'guess' },
+      { k: 'hyper', label: '超弹性刚化 (neo-Hookean, 只修正力)', en: 'Hyperelastic stiffening (neo-Hookean, force only)', type: 'bool' },
+      { k: 'visco', label: '粘弹性 (蠕变 / 迟滞)', en: 'Viscoelasticity (creep / hysteresis)', type: 'bool' },
+      { k: 'vr', label: '松弛强度 r = E0/E∞ − 1', en: 'Relaxation strength r = E0/E∞ − 1', unit: '', min: 0, max: 2, step: 0.01, flag: 'guess' },
+      { k: 'vtau', label: '时间常数 τ', en: 'Time constant τ', unit: 's', min: 0.1, max: 10, step: 0.1, flag: 'guess' },
+      { k: 'grid', label: '求解网格', en: 'Solver grid', type: 'select', options: [[0.3, '0.30 mm · 128² · 快', '0.30 mm · 128² · fast'], [0.15, '0.15 mm · 256² · 精', '0.15 mm · 256² · fine']] },
+      { k: 'iters', label: '每帧迭代上限', en: 'Max iterations per frame', noteEn: 'While interacting, iterations continue frame by frame until converged (progressive refinement)', unit: '', min: 1, max: 40, step: 1, note: '交互时逐帧继续迭代直到收敛（渐进细化）' },
+      { k: 'control', label: '加载方式', en: 'Loading', type: 'select', options: [['depth', '压深控制', 'Depth control'], ['force', '力控制', 'Force control']] }
     ],
     f3: [
-      { k: 'falloff', label: '点/条形光源：1/r² 衰减 + 发光角分布', type: 'bool' },
-      { k: 'spectral', label: 'LED 光谱 × 相机 RGB 响应 (串色)', type: 'bool' }
+      { k: 'falloff', label: '点/条形光源：1/r² 衰减 + 发光角分布', en: 'Point/strip sources: 1/r² falloff + emission pattern', type: 'bool' },
+      { k: 'spectral', label: 'LED 光谱 × 相机 RGB 响应 (串色)', en: 'LED spectra × camera RGB response (crosstalk)', type: 'bool' }
     ],
     f4: [
-      { k: 'absorb', label: '吸收 / 体散射 / 杂散光', type: 'bool' },
-      { k: 'mu', label: '衰减系数 μt', unit: '1/mm', min: 0, max: 0.2, step: 0.001, flag: 'guess' },
-      { k: 'haze', label: '体散射雾 (各向同性比例)', unit: '', min: 0, max: 0.5, step: 0.005, flag: 'guess' },
-      { k: 'glare', label: '成像杂散光比例', unit: '', min: 0, max: 0.3, step: 0.005, flag: 'guess' },
-      { k: 'glareSigma', label: '杂散光宽度 σ', unit: 'mm', min: 0.2, max: 6, step: 0.1, flag: 'guess' },
-      { k: 'interrefl', label: '涂层互反射 (一次反弹)', type: 'bool' },
-      { k: 'kir', label: '互反射强度', unit: '', min: 0, max: 3, step: 0.05, flag: 'guess' },
-      { k: 'irR', label: '互反射作用半径', unit: 'mm', min: 0.1, max: 3, step: 0.05, flag: 'guess' },
-      { k: 'trap', label: '全内反射光陷阱 (多次反弹)', type: 'bool' },
-      { k: 'trapLoss', label: '每次反弹损失', unit: '', min: 0, max: 1, step: 0.01, flag: 'guess', note: '侧壁吸收、底面划痕、出射；0 = 理想无损' },
-      { k: 'refract', label: '折射 (相机光线 + 亚克力底面全反射镜像光源)', type: 'bool' },
-      { k: 'nGel', label: '胶体折射率', unit: '', min: 1.3, max: 1.6, step: 0.005, flag: 'lit' },
-      { k: 'nAcr', label: '亚克力折射率', unit: '', min: 1.3, max: 1.7, step: 0.005, flag: 'lit' }
+      { k: 'absorb', label: '吸收 / 体散射 / 杂散光', en: 'Absorption / bulk scattering / stray light', type: 'bool' },
+      { k: 'mu', label: '衰减系数 μt', en: 'Attenuation coefficient μt', unit: '1/mm', min: 0, max: 0.2, step: 0.001, flag: 'guess' },
+      { k: 'haze', label: '体散射雾 (各向同性比例)', en: 'Bulk-scattering haze (isotropic fraction)', unit: '', min: 0, max: 0.5, step: 0.005, flag: 'guess' },
+      { k: 'glare', label: '成像杂散光比例', en: 'Veiling-glare fraction', unit: '', min: 0, max: 0.3, step: 0.005, flag: 'guess' },
+      { k: 'glareSigma', label: '杂散光宽度 σ', en: 'Glare width σ', unit: 'mm', min: 0.2, max: 6, step: 0.1, flag: 'guess' },
+      { k: 'interrefl', label: '涂层互反射 (一次反弹)', en: 'Coating interreflection (one bounce)', type: 'bool' },
+      { k: 'kir', label: '互反射强度', en: 'Interreflection strength', unit: '', min: 0, max: 3, step: 0.05, flag: 'guess' },
+      { k: 'irR', label: '互反射作用半径', en: 'Interreflection radius', unit: 'mm', min: 0.1, max: 3, step: 0.05, flag: 'guess' },
+      { k: 'trap', label: '全内反射光陷阱 (多次反弹)', en: 'TIR light trapping (multiple bounces)', type: 'bool' },
+      { k: 'trapLoss', label: '每次反弹损失', en: 'Loss per bounce', noteEn: 'Side-wall absorption, scratches on the bottom face, light escaping; 0 = lossless', unit: '', min: 0, max: 1, step: 0.01, flag: 'guess', note: '侧壁吸收、底面划痕、出射；0 = 理想无损' },
+      { k: 'refract', label: '折射 (相机光线 + 亚克力底面全反射镜像光源)', en: 'Refraction (camera rays + mirror sources from the acrylic bottom face)', type: 'bool' },
+      { k: 'nGel', label: '胶体折射率', en: 'Gel refractive index', unit: '', min: 1.3, max: 1.6, step: 0.005, flag: 'lit' },
+      { k: 'nAcr', label: '亚克力折射率', en: 'Acrylic refractive index', unit: '', min: 1.3, max: 1.7, step: 0.005, flag: 'lit' }
     ],
     f5: [
-      { k: 'persp', label: '透视投影 (形变的视差)', type: 'bool' },
-      { k: 'Zc', label: '相机到涂层距离', unit: 'mm', min: 5, max: 60, step: 0.5, flag: 'guess', note: '你的相机是鱼眼且很近；畸变已校正，这里只算形变点的视差' },
-      { k: 'defocus', label: '离焦模糊 (景深)', type: 'bool' },
-      { k: 'f', label: '焦距 f', unit: 'mm', min: 0.8, max: 8, step: 0.1, flag: 'guess' },
-      { k: 'N', label: '光圈 F 数', unit: '', min: 1, max: 16, step: 0.1, flag: 'guess' },
-      { k: 'focus', label: '对焦面偏移 (朝相机为正)', unit: 'mm', min: -2, max: 3, step: 0.05 },
-      { k: 'psf0', label: '镜头基础 PSF σ', unit: 'px', min: 0, max: 3, step: 0.05, flag: 'guess' },
-      { k: 'vignette', label: '暗角 (cos⁴ + 镜头渐晕)', type: 'bool' },
-      { k: 'vn', label: '暗角指数 n（cosⁿ 视场角）', unit: '', min: 0, max: 4, step: 0.1, flag: 'guess', note: '直线镜头 ≈ 4（cos⁴ 定律）；鱼眼 ≈ 1–2' },
-      { k: 'vk', label: '渐晕系数', unit: '', min: 0, max: 0.8, step: 0.01, flag: 'guess' },
-      { k: 'noise', label: '噪声 (散粒 + 读出) + 量化', type: 'bool' },
-      { k: 'fw', label: '满阱电子数', unit: 'e⁻', min: 500, max: 40000, step: 100, flag: 'guess' },
-      { k: 'read', label: '读出噪声', unit: 'e⁻', min: 0, max: 30, step: 0.5, flag: 'guess' },
-      { k: 'gamma', label: '伽马曲线', type: 'bool' },
-      { k: 'g', label: 'γ', unit: '', min: 1, max: 3, step: 0.05, flag: 'lit' },
-      { k: 'ae', label: '曝光', type: 'select', options: [['bg', '按无接触背景标定后锁定'], ['manual', '手动 EV（相对背景标定）'], ['auto', '连续自动曝光']] },
-      { k: 'ev', label: 'EV', unit: '', min: -3, max: 3, step: 0.1 },
-      { k: 'wb', label: '白平衡', type: 'select', options: [['off', '关 (增益 = 1)'], ['gray', '灰世界 (背景锁定)'], ['manual', '手动 R/B 增益']] },
-      { k: 'wbR', label: 'R 增益', unit: '', min: 0.3, max: 3, step: 0.01 },
-      { k: 'wbB', label: 'B 增益', unit: '', min: 0.3, max: 3, step: 0.01 }
+      { k: 'persp', label: '透视投影 (形变的视差)', en: 'Perspective projection (parallax of the deformation)', type: 'bool' },
+      { k: 'Zc', label: '相机到涂层距离', en: 'Camera-to-coating distance', noteEn: 'The author\'s sensor uses a close-range fisheye camera; distortion is assumed calibrated, so only the parallax of displaced points is modelled', unit: 'mm', min: 5, max: 60, step: 0.5, flag: 'guess', note: '作者传感器用的是近距离鱼眼相机；假设畸变已校正，这里只算形变点的视差' },
+      { k: 'defocus', label: '离焦模糊 (景深)', en: 'Defocus blur (depth of field)', type: 'bool' },
+      { k: 'f', label: '焦距 f', en: 'Focal length f', unit: 'mm', min: 0.8, max: 8, step: 0.1, flag: 'guess' },
+      { k: 'N', label: '光圈 F 数', en: 'Aperture (f-number)', unit: '', min: 1, max: 16, step: 0.1, flag: 'guess' },
+      { k: 'focus', label: '对焦面偏移 (朝相机为正)', en: 'Focus offset (toward camera +)', unit: 'mm', min: -2, max: 3, step: 0.05 },
+      { k: 'psf0', label: '镜头基础 PSF σ', en: 'Base lens PSF σ', unit: 'px', min: 0, max: 3, step: 0.05, flag: 'guess' },
+      { k: 'vignette', label: '暗角 (cos⁴ + 镜头渐晕)', en: 'Vignetting (cosⁿ + lens falloff)', type: 'bool' },
+      { k: 'vn', label: '暗角指数 n（cosⁿ 视场角）', en: 'Vignetting exponent n (cosⁿ of field angle)', noteEn: 'Rectilinear lens ≈ 4 (cos⁴ law); fisheye ≈ 1–2', unit: '', min: 0, max: 4, step: 0.1, flag: 'guess', note: '直线镜头 ≈ 4（cos⁴ 定律）；鱼眼 ≈ 1–2' },
+      { k: 'vk', label: '渐晕系数', en: 'Lens falloff coefficient', unit: '', min: 0, max: 0.8, step: 0.01, flag: 'guess' },
+      { k: 'noise', label: '噪声 (散粒 + 读出) + 量化', en: 'Noise (shot + read) + quantisation', type: 'bool' },
+      { k: 'fw', label: '满阱电子数', en: 'Full-well capacity', unit: 'e⁻', min: 500, max: 40000, step: 100, flag: 'guess' },
+      { k: 'read', label: '读出噪声', en: 'Read noise', unit: 'e⁻', min: 0, max: 30, step: 0.5, flag: 'guess' },
+      { k: 'gamma', label: '伽马曲线', en: 'Gamma curve', type: 'bool' },
+      { k: 'g', label: 'γ', en: 'γ', unit: '', min: 1, max: 3, step: 0.05, flag: 'lit' },
+      { k: 'ae', label: '曝光', en: 'Exposure', type: 'select', options: [['bg', '按无接触背景标定后锁定', 'Calibrated on the no-contact background, then locked'], ['manual', '手动 EV（相对背景标定）', 'Manual EV (relative to the calibration)'], ['auto', '连续自动曝光', 'Continuous auto-exposure']] },
+      { k: 'ev', label: 'EV', en: 'EV', unit: '', min: -3, max: 3, step: 0.1 },
+      { k: 'wb', label: '白平衡', en: 'White balance', type: 'select', options: [['off', '关 (增益 = 1)', 'Off (gains = 1)'], ['gray', '灰世界 (背景锁定)', 'Grey world (locked on background)'], ['manual', '手动 R/B 增益', 'Manual R/B gains']] },
+      { k: 'wbR', label: 'R 增益', en: 'R gain', unit: '', min: 0.3, max: 3, step: 0.01 },
+      { k: 'wbB', label: 'B 增益', en: 'B gain', unit: '', min: 0.3, max: 3, step: 0.01 }
     ],
     f6: [
-      { k: 'mu', label: '摩擦系数 μ', unit: '', min: 0.1, max: 3, step: 0.05, flag: 'guess', note: '硅胶表面通常 0.8–2' }
+      { k: 'mu', label: '摩擦系数 μ', en: 'Friction coefficient μ', noteEn: 'Silicone surfaces are typically 0.8–2', unit: '', min: 0.1, max: 3, step: 0.05, flag: 'guess', note: '硅胶表面通常 0.8–2' }
     ]
   };
   var LED_COLS = [
-    { k: 'type', label: '颜色', type: 'select', options: [['R', 'R'], ['G', 'G'], ['B', 'B'], ['W', 'W']] },
-    { k: 'az', label: '方位°', min: -180, max: 360, step: 1, flag: 'repo' },
-    { k: 'dist', label: '距中心', unit: 'mm', min: 5, max: 40, step: 0.5, flag: 'guess' },
-    { k: 'z', label: '高度', unit: 'mm', min: 0.2, max: 15, step: 0.1, flag: 'guess' },
-    { k: 'tilt', label: '仰角°', min: -30, max: 60, step: 1, flag: 'guess' },
-    { k: 'half', label: '半功率角°', min: 10, max: 85, step: 1, flag: 'guess' },
-    { k: 'I', label: '强度', min: 0, max: 3, step: 0.05, flag: 'guess' },
-    { k: 'strip', label: '条宽', unit: 'mm', min: 0, max: 20, step: 0.5, flag: 'guess' },
-    { k: 'size', label: '发光尺寸', unit: 'mm', min: 0.2, max: 6, step: 0.1, flag: 'guess' },
-    { k: 'peak', label: '峰值 nm', min: 400, max: 700, step: 1, flag: 'lit' },
-    { k: 'fwhm', label: 'FWHM nm', min: 5, max: 150, step: 1, flag: 'lit' }
+    { k: 'type', label: '颜色', en: 'Colour', type: 'select', options: [['R', 'R'], ['G', 'G'], ['B', 'B'], ['W', 'W']] },
+    { k: 'az', label: '方位°', en: 'Azimuth°', min: -180, max: 360, step: 1, flag: 'repo' },
+    { k: 'dist', label: '距中心', en: 'Distance', unit: 'mm', min: 5, max: 40, step: 0.5, flag: 'guess' },
+    { k: 'z', label: '高度', en: 'Height', unit: 'mm', min: 0.2, max: 15, step: 0.1, flag: 'guess' },
+    { k: 'tilt', label: '仰角°', en: 'Tilt°', min: -30, max: 60, step: 1, flag: 'guess' },
+    { k: 'half', label: '半功率角°', en: 'Half-angle°', min: 10, max: 85, step: 1, flag: 'guess' },
+    { k: 'I', label: '强度', en: 'Intensity', min: 0, max: 3, step: 0.05, flag: 'guess' },
+    { k: 'strip', label: '条宽', en: 'Strip width', unit: 'mm', min: 0, max: 20, step: 0.5, flag: 'guess' },
+    { k: 'size', label: '发光尺寸', en: 'Emitter size', unit: 'mm', min: 0.2, max: 6, step: 0.1, flag: 'guess' },
+    { k: 'peak', label: '峰值 nm', en: 'Peak nm', min: 400, max: 700, step: 1, flag: 'lit' },
+    { k: 'fwhm', label: 'FWHM nm', en: 'FWHM nm', min: 5, max: 150, step: 1, flag: 'lit' }
   ];
   return { defaults: defaults, schema: S, ledCols: LED_COLS };
 })();
@@ -1513,6 +1514,18 @@ var GSP = (function () {
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
   var STAGE = 2;
+  var LANG = (function () {
+    var q = null;
+    try { q = new URLSearchParams(location.search).get('lang'); } catch (e) { /* ignore */ }
+    if (q === 'en' || q === 'zh') return q;
+    try { var sv = localStorage.getItem('gs-lang'); if (sv === 'en' || sv === 'zh') return sv; } catch (e) { /* ignore */ }
+    var nl = (navigator.languages && navigator.languages[0]) || navigator.language || 'en';
+    return /^zh/i.test(nl) ? 'zh' : 'en';
+  })();
+  function tr(zh, en) { return LANG === 'en' ? en : zh; }
+  function lab(spec) { return LANG === 'en' ? (spec.en || spec.label) : spec.label; }
+  function noteOf(spec) { return LANG === 'en' ? (spec.noteEn || spec.note) : spec.note; }
+  function optLabel(o) { return LANG === 'en' && o[2] ? o[2] : o[1]; }
   var P = GSP.defaults();
   var W = 320, H = 240, TOL = 1e-4;
   var sim = new GS.Sim(W, H), bgSim = new GS.Sim(W, H);
@@ -1540,7 +1553,7 @@ var GSP = (function () {
   };
 
   /* ---------- model notes ---------- */
-  var NOTES = {
+  var NOTES_ZH = {
     sensor: '<p>坐标：x 向右、y 向下（与图像行列一致），z 从涂层指向相机。高度 u = 涂层朝相机方向的位移，压入为正、鼓起为负。仿真分辨率 320×240（导出可选 640×480）。</p>',
     f1: '<p><b>模型</b>：涂层内表面（相机一侧）BRDF = 朗伯漫反射 ρd/π ＋ 微面元镜面 ks·D·V（GGX/Trowbridge–Reitz 法线分布，高度相关 Smith 遮蔽–阴影项，粗糙度 α）。</p>' +
       '<p><b>阴影 / 自遮挡</b>：① 附着阴影：n·l ≤ 0 时为 0；② 微观遮蔽：Smith 项；③ 宏观投射阴影：对高度场沿"形变质心 → 光源"方向做地平线扫描（每个光源一次），按光源发光尺寸给出软半影。</p>' +
@@ -1558,18 +1571,18 @@ var GSP = (function () {
       '<p><b>关闭时</b>：表面 = 压头形状本身（max(0, 压入量)），无过渡区，不计算力。</p>',
     f3: '<p><b>模型</b>：每颗 LED 是"在胶体中看到的等效位置"上的点光源；条宽 &gt; 0 时沿边方向等分 3 个子光源（光导/条形灯）。辐照度 = Φ·cos^m(ψ)/r²·(n·l)，m 由半功率角求得。Φ 归一化为"视场中心平面辐照度 = 设定强度"，所以开关衰减不会改变中心亮度。</p>' +
       '<p><b>光谱串色</b>：LED 光谱用高斯（白光 = 450 nm 蓝光芯片 + 565 nm 宽带荧光粉），相机 R/G/B 量子效率用典型 Bayer CMOS 的高斯近似（含 655 nm 红外截止），积分得到下面的混合矩阵（每列按该 LED 最强通道归一化）。涂层反射谱视为平坦（中性灰/银）。</p>' +
-      '<p><b>简化</b>：不追踪光导内部的真实光路（用等效位置折算）；LED 之间无差异；相机 QE 不是你的相机实测。</p>' +
+      '<p><b>简化</b>：不追踪光导内部的真实光路（用等效位置折算）；LED 之间无差异；相机 QE 不是实测曲线。</p>' +
       '<p><b>关闭时</b>：方向光（方向 = 视场中心指向 LED），无衰减，每颗 LED 只进入名义通道（白光进入全部通道）。</p>' +
-      '<p><b>默认布局</b>：按你仓库 cam1 标定图推断——右 = 红、上 = 绿、左 = 蓝、下 = 白（球压痕四周颜色与背景渐变方向一致）。距离、高度按你真实背景的不均匀度（近边/中心 ≈ 1.4，线性）粗调；其余都是猜测。</p>',
+      '<p><b>默认布局</b>：按作者传感器的标定图（Gelsight_controller 仓库，cam1）推断——右 = 红、上 = 绿、左 = 蓝、下 = 白（球压痕四周颜色与背景渐变方向一致）。距离、高度按真实背景的不均匀度（近边/中心 ≈ 1.4，线性）粗调；其余都是猜测。</p>',
     f4: '<p><b>模型</b>（在胶体表面网格上，叠加到直射辐亮度上）：</p><ul>' +
       '<li><b>吸收 / 体散射</b>：LED 到表面的光按 Beer–Lambert e^(−μt·r) 衰减；被散射的部分当作各向同性"雾光"，每颗 LED 加 (ρd/π)·h·Es，并在约 2 mm 内平滑（不产生阴影，降低对比）。成像杂散光：图像 = (1−g)·I + g·模糊(I, σ)。</li>' +
       '<li><b>涂层互反射</b>：一次反弹近似。某点被周围更靠近相机的涂层包围（凹处）时，会收到邻近涂层反射来的光：L += ρd·k·cav·模糊_R(L)，cav = clamp((模糊_R(u) − u)/R, 0, 1)。</li>' +
       '<li><b>全内反射光陷阱</b>：涂层漫反射光里，出射角超出胶体逃逸锥（sinθ &gt; 1/n）的比例 1 − 1/n² ≈ 50%，会在亚克力/空气界面全反射回涂层，横向走出约 2T·tanθ（T = 胶厚 + 亚克力厚）。每次反弹回授 g = ρd(1 − 1/n²)(1 − 损失)，多次反弹总增益 g/(1−g)，空间上用 σ = 1.5T 与 4T 两个高斯近似。真实图像背景发白、颜色偏淡，主要就来自这一项。</li>' +
       '<li><b>折射</b>：① 相机光线经 空气→亚克力→胶体 按 Snell 定律弯折：同样的压入深度，视差比不考虑折射时小；镜面高光用的视线方向随之改变；斜出射光线的菲涅耳透射率随视场角下降（需开启 ⑤ 透视）。② LED 在光导内部（高度 &lt; 胶厚 + 亚克力厚）时，亚克力底面的全反射用镜像光源表示（入射角小于临界角时按菲涅耳反射率），相当于多了一组更陡的光源。</li></ul>' +
       '<p><b>简化</b>：互反射只算一次，可见立体角用凹度近似；光陷阱的核是平移不变的，视场边缘侧壁的真实几何用"每次反弹损失"折算；胶体/亚克力界面对 LED 光的弯折忽略（折射率只差 0.08）；LED 在亚克力外面时不模拟入射面折射，请把它的位置理解为胶体中看到的等效位置。</p>',
-    f5: '<ul><li><b>透视视差</b>：针孔相机在涂层下方 Zc 处。你说几何畸变已校正，所以参考平面（未变形涂层）上像素与 mm 一一对应；但压入后更靠近相机的点会沿视线移向光轴：x_seen = x − tanθ_胶(r)·u。逐像素迭代求光线与高度场的交点，所以导出的真值图是"这个像素真正看到的点"。</li>' +
+    f5: '<ul><li><b>透视视差</b>：针孔相机在涂层下方 Zc 处。假设几何畸变已经校正，所以参考平面（未变形涂层）上像素与 mm 一一对应；但压入后更靠近相机的点会沿视线移向光轴：x_seen = x − tanθ_胶(r)·u。逐像素迭代求光线与高度场的交点，所以导出的真值图是"这个像素真正看到的点"。</li>' +
       '<li><b>离焦</b>：薄透镜，物方弥散圆直径 b = A·|z − z_f|/z，A = f/N；深度用折射后的视深 u/n。按 σ = b/4 的高斯近似，再叠加镜头基础 PSF；空间变化的模糊用多级模糊插值实现。</li>' +
-      '<li><b>暗角</b>：自然渐晕 cos⁴(视场角) × (1 − k·r²)。</li>' +
+      '<li><b>暗角</b>：cosⁿ(视场角) × (1 − k·r²)，直线镜头 n = 4（cos⁴ 定律），鱼眼约 1–2。</li>' +
       '<li><b>噪声</b>：信号按满阱电子数换算，散粒噪声（泊松的高斯近似）+ 读出噪声，再量化到 8 位。每帧随机种子不同，批量导出时种子写进 meta。</li>' +
       '<li><b>伽马</b>：v^(1/γ)。</li>' +
       '<li><b>曝光 / 白平衡</b>：默认在无接触背景上标定（99 分位 = 0.85）后锁定，和真实传感器的固定曝光一样；也可以手动 EV 或连续自动曝光。白平衡可选灰世界（背景锁定）或手动。处理顺序：光学 → 曝光 → 噪声 → 白平衡 → 伽马 → 量化。</li></ul>' +
@@ -1579,12 +1592,60 @@ var GSP = (function () {
       '<p><b>粘–滑</b>：切向刚度 K_t = G·A_eff/t（G = E/2(1+ν)），扭转刚度 K_r = G·∫w·r²/t；|D| 超过 μF/K_t（或扭转超过 μF·r_eff/K_r）时压头相对胶体滑动，粘着位移停在极限上。</p>' +
       '<p><b>简化</b>：切向与法向接触解耦（法向接触在"材料坐标"下求解，再整体平移）；没有局部微滑（Cattaneo–Mindlin 环）；切向柔度用均匀剪切近似；这是线性小变形模型，切向位移 |D| ≲ 0.3·t 时可信，再大就会高估堆起，所以粘着位移另设上限 0.5·t（超过即按滑动处理）。在纯颜色传感器上，它的效果主要是压痕轻微拖尾和前后不对称。</p><p><b>关闭时</b>：拖动只是把压头移到新位置重新求解。</p>'
   };
-  var TITLES = {
+
+  var NOTES_EN = {
+    sensor: '<p>Coordinates: x right, y down (image columns and rows), z from the coating toward the camera. Height u is the coating displacement toward the camera: positive where pressed in, negative where the gel bulges. Simulation resolution 320×240 (export also 640×480).</p>',
+    f1: '<p><b>Model.</b> BRDF of the inner (camera-side) coating surface = Lambertian diffuse ρd/π + microfacet specular ks·D·V (GGX/Trowbridge–Reitz distribution, height-correlated Smith masking–shadowing, roughness α).</p>' +
+      '<p><b>Shadowing.</b> ① Attached shadow: zero where n·l ≤ 0. ② Microscale masking: the Smith term. ③ Cast shadows: a horizon sweep through the height field from the deformation centroid toward each source, with a soft penumbra set by the size of the emitter.</p>' +
+      '<p><b>Simplifications.</b> ks does not vary with angle (no Fresnel term); no subsurface scattering in the coating and no anisotropy from flake orientation; one shadow direction per point source (small error near the deformation); for strip sources the specular term uses the energy-weighted mean direction; occlusion of the camera view by steep walls is ignored (near-normal viewing).</p>' +
+      '<p><b>When off.</b> Pure Lambertian, no cast shadows (n·l clamping only).</p>',
+    f2: '<p><b>Model.</b> The gel is a linear elastic layer (thickness t, E, ν) bonded to rigid acrylic, with frictionless contact on top. The surface normal compliance uses the closed-form thin-layer solution in Fourier space:</p>' +
+      '<p style="font-family:var(--mono);font-size:12px">C(k) = 2(1−ν²)/(E·k) · (κ·sinh2η − 2η) / (κ·cosh2η + 2η² + (1+κ²)/2), η = k·t, κ = 3 − 4ν</p>' +
+      '<p>Contact is solved on an FFT grid with the Polonsky–Keer conjugate-gradient method (p ≥ 0, gap ≥ 0, complementarity), so the transition zone at the contact edge and the surrounding sink-in and bulge (volume-conserving as ν→0.5) come out of the solution rather than being imposed.</p>' +
+      '<ul><li><b>Coating</b>: a thin plate with bending stiffness D = Ec·tc³/12(1−ν²) is added to the compliance (1/C + D·k⁴); on the fine grid the same cut-off wavenumber is applied as a Gaussian low-pass, so the coating smooths away fine detail.</li>' +
+      '<li><b>Detail</b>: the displacement from the solver grid (0.3 mm) is upsampled with cubic B-splines and combined with the indenter shape on the fine grid by a max (the gel cannot pass through the indenter); grooves narrower than the grid are bridged rather than filled.</li>' +
+      '<li><b>Hyperelastic (optional)</b>: neo-Hookean compression stiffening S(λ) = (λ − λ⁻²)/(3(λ − 1)), λ = 1 − u/t, <b>applied to the force only</b>. Under depth control the surface shape is still the linear solution. This is the biggest simplification here; true large-deformation shapes need FEM. Under force control it changes the depth and therefore, indirectly, the image.</li>' +
+      '<li><b>Viscoelastic (optional)</b>: standard linear solid with creep compliance J(t) = J₀[1 + r(1 − e^(−t/τ))]; the delayed and instantaneous parts share the same spatial kernel. Held at constant depth, the force relaxes to 1/(1+r); after release the imprint fades with time constant τ (hysteresis).</li></ul>' +
+      '<p><b>Validation.</b> The thick-layer limit matches Hertz (same peak pressure, contact radius within 2–4%); for ν = 0.5 the thin-layer force is within 1% of the asymptote F = (2π/3)·E·R²·δ³/t³ at a/t ≈ 40; viscoelastic relaxation settles at exactly 1/(1+r).</p>' +
+      '<p><b>Simplifications.</b> Periodic boundaries (38.4 mm window, much larger than the gel thickness; edge error &lt; 0.1%); frictionless (shear is factor ⑥); the coating low-pass approximates the prescribed-displacement case.</p>' +
+      '<p><b>When off.</b> The surface is the indenter shape itself (max(0, penetration)), with no transition zone and no force.</p>',
+    f3: '<p><b>Model.</b> Each LED is a point source at its effective position as seen from inside the gel; with a strip width &gt; 0 it is split into 3 sub-sources along the edge (light guide or LED strip). Irradiance = Φ·cos^m(ψ)/r²·(n·l), with m from the half-power angle. Φ is normalised so that the flat-surface irradiance at the centre of the field of view equals the set intensity, so switching the falloff on or off does not change the brightness at the centre.</p>' +
+      '<p><b>Spectral crosstalk.</b> LED spectra are Gaussians (white = 450 nm blue die + broad 565 nm phosphor); the camera R/G/B quantum efficiencies are Gaussian approximations of a typical Bayer CMOS sensor with a 655 nm IR-cut filter. Integrating gives the mixing matrix below, each column normalised to that LED\'s strongest channel. The coating reflectance is taken as spectrally flat (neutral grey or silver).</p>' +
+      '<p><b>Simplifications.</b> Light paths inside the light guide are not traced (effective positions instead); all LEDs are identical; the camera QE is not a measured curve.</p>' +
+      '<p><b>When off.</b> Directional lights (from the centre of the field of view toward each LED), no falloff, and each LED feeds only its nominal channel (white feeds all three).</p>' +
+      '<p><b>Default layout.</b> Inferred from calibration images of the author\'s sensor (Gelsight_controller repository, cam1): red right, green top, blue left, white bottom, matching the colours around a ball imprint and the background gradients. Distances and heights were tuned roughly to the measured background non-uniformity (edge/centre ≈ 1.4, linear); everything else is assumed.</p>',
+    f4: '<p><b>Model</b> (on the gel-surface grid, added to the direct radiance):</p><ul>' +
+      '<li><b>Absorption and bulk scattering</b>: light travelling from the LEDs to the surface is attenuated as e^(−μt·r) (Beer–Lambert). The scattered part is treated as an isotropic haze: each LED adds (ρd/π)·h·Es, smoothed over about 2 mm (no shadows, lower contrast). Veiling glare in imaging: image = (1−g)·I + g·blur(I, σ).</li>' +
+      '<li><b>Coating interreflection</b>: one-bounce approximation. A point surrounded by coating that is closer to the camera (a concavity) receives light reflected by its neighbours: L += ρd·k·cav·blur_R(L), cav = clamp((blur_R(u) − u)/R, 0, 1).</li>' +
+      '<li><b>Light trapping by total internal reflection</b>: the fraction 1 − 1/n² ≈ 50% of the coating\'s diffuse light that leaves outside the gel\'s escape cone (sinθ &gt; 1/n) is totally reflected at the acrylic/air face and returns to the coating about 2T·tanθ away (T = gel + acrylic thickness). The feedback per bounce is g = ρd(1 − 1/n²)(1 − loss), the multi-bounce gain is g/(1−g), and the light is spread with two Gaussians of σ = 1.5T and 4T. This is the main reason real images have a pale, desaturated background.</li>' +
+      '<li><b>Refraction</b>: ① Camera rays bend at air → acrylic → gel (Snell\'s law). For the same indentation the parallax is smaller than without refraction, the viewing direction used for specular reflection changes, and the Fresnel transmission of oblique rays falls with field angle (needs ⑤ perspective). ② When an LED sits inside the light guide (height &lt; gel + acrylic thickness), total reflection at the acrylic bottom face is represented by a mirror-image source (Fresnel reflectance below the critical angle), which adds a set of steeper sources.</li></ul>' +
+      '<p><b>Simplifications.</b> Interreflection is single-bounce, with the visible solid angle approximated by concavity; the trapping kernel is shift-invariant, and the real side-wall geometry near the edges is folded into the per-bounce loss; bending of LED light at the gel/acrylic interface is ignored (the indices differ by only 0.08); refraction at the entry face is not modelled for LEDs outside the acrylic, so read their positions as effective positions seen from inside the gel.</p>',
+    f5: '<ul><li><b>Perspective parallax</b>: pinhole camera at distance Zc below the coating. Lens distortion is assumed to be calibrated out, so on the reference plane (undeformed coating) pixels map one-to-one to millimetres; points pushed toward the camera move along the line of sight toward the optical axis: x_seen = x − tanθ_gel(r)·u. The ray/height-field intersection is solved per pixel, so the exported ground truth is the surface point each pixel actually sees.</li>' +
+      '<li><b>Defocus</b>: thin lens with object-side blur diameter b = A·|z − z_f|/z, A = f/N, using the refraction-shortened apparent depth u/n. It is approximated by a Gaussian of σ = b/4 plus a base lens PSF; spatially varying blur interpolates between several blur levels.</li>' +
+      '<li><b>Vignetting</b>: cosⁿ of the field angle × (1 − k·r²); n = 4 for a rectilinear lens (cos⁴ law), about 1–2 for a fisheye.</li>' +
+      '<li><b>Noise</b>: the signal is converted to electrons via the full-well capacity, with shot noise (Gaussian approximation of Poisson) and read noise, then quantised to 8 bits. The seed changes every frame; batch export records it in the metadata.</li>' +
+      '<li><b>Gamma</b>: v^(1/γ).</li>' +
+      '<li><b>Exposure and white balance</b>: by default the exposure is calibrated on the no-contact background (99th percentile = 0.85) and then locked, as on a real sensor; manual EV and continuous auto-exposure are also available. White balance: grey world (locked on the background) or manual. Order: optics → exposure → noise → white balance → gamma → quantisation.</li></ul>' +
+      '<p><b>Simplifications.</b> No Bayer demosaicing or colour-correction matrix; no hot pixels, fixed-pattern noise, motion blur or rolling shutter; defocus uses a Gaussian rather than a disc and ignores occlusion at edges.</p>' +
+      '<p><b>When off.</b> Ideal linear camera, orthographic projection, exposure locked on the no-contact background.</p>',
+    f6: '<p><b>Model.</b> While dragging, the gel under the contact moves tangentially with the indenter (stick). The displacement field is u_t(x) = w(x)·(D + φ×(x − c)), with w = 1 in the stick zone (rigid translation), decaying over about one gel thickness outside. The surface is shifted accordingly, and for an incompressible layer bonded to its base, depth-averaged continuity raises or lowers it by Δu = (t/2)·∇·u_t: material piles up ahead of the indenter and sinks behind it.</p>' +
+      '<p><b>Stick–slip.</b> Tangential stiffness K_t = G·A_eff/t (G = E/2(1+ν)), torsional stiffness K_r = G·∫w·r²/t. Once |D| exceeds μF/K_t (or the twist exceeds μF·r_eff/K_r), the indenter slides over the gel and the stick displacement stays at the limit.</p>' +
+      '<p><b>Simplifications.</b> Tangential and normal contact are decoupled (normal contact is solved in material coordinates, then shifted); no partial micro-slip (Cattaneo–Mindlin annulus); tangential compliance from uniform shear. This is a small-strain linear model, reliable for |D| ≲ 0.3·t; beyond that it overestimates the pile-up, so the stick displacement is also capped at 0.5·t (beyond that it counts as sliding). On a colour-only sensor the visible effect is mainly a slight drag and a front/back asymmetry of the imprint.</p><p><b>When off.</b> Dragging just moves the indenter and solves the contact again.</p>'
+  };
+  function notes(id) { return (LANG === 'en' ? NOTES_EN : NOTES_ZH)[id]; }
+  var TITLES_ZH = {
     f1: ['① 涂层反射', 'BRDF + 阴影 / 自遮挡'], f2: ['② 胶体变形', '薄层弹性接触 · 涂层 · 超弹 · 粘弹'],
     f3: ['③ 照明', 'LED 位置 · 1/r² · 光谱串色'], f4: ['④ 光在胶体内的传播', '散射 · 互反射 · 光陷阱 · 折射'],
     f5: ['⑤ 相机', '视差 · 离焦 · 暗角 · 噪声 · 伽马 · AE/AWB'], f6: ['⑥ 摩擦与剪切', '粘–滑 · 切向变形'],
     sensor: ['传感器几何', '']
   };
+  var TITLES_EN = {
+    f1: ['① Coating reflectance', 'BRDF + shadowing'], f2: ['② Gel deformation', 'thin-layer elastic contact · coating · hyperelastic · viscoelastic'],
+    f3: ['③ Illumination', 'LED positions · 1/r² · spectral crosstalk'], f4: ['④ Light transport in the gel', 'scattering · interreflection · trapping · refraction'],
+    f5: ['⑤ Camera', 'parallax · defocus · vignetting · noise · gamma · AE/AWB'], f6: ['⑥ Friction and shear', 'stick–slip · tangential deformation'],
+    sensor: ['Sensor geometry', '']
+  };
+  function title(id) { return (LANG === 'en' ? TITLES_EN : TITLES_ZH)[id]; }
   var READY = { f1: true, f2: true, f3: true, f4: STAGE >= 2, f5: STAGE >= 2, f6: STAGE >= 2 };
   var DEPS = { 'f2.Ec': 'f2.plate', 'f2.tc': 'f2.plate', 'f2.vr': 'f2.visco', 'f2.vtau': 'f2.visco',
     'f4.mu': 'f4.absorb', 'f4.haze': 'f4.absorb', 'f4.glare': 'f4.absorb', 'f4.glareSigma': 'f4.absorb',
@@ -1592,15 +1653,19 @@ var GSP = (function () {
     'f5.Zc': 'f5.persp', 'f5.f': 'f5.defocus', 'f5.N': 'f5.defocus', 'f5.focus': 'f5.defocus', 'f5.psf0': 'f5.defocus',
     'f5.vk': 'f5.vignette', 'f5.vn': 'f5.vignette', 'f5.fw': 'f5.noise', 'f5.read': 'f5.noise', 'f5.g': 'f5.gamma',
     'f5.ev': ['f5.ae', 'manual'], 'f5.wbR': ['f5.wb', 'manual'], 'f5.wbB': ['f5.wb', 'manual'] };
-  var FLAGTXT = { guess: '⚠', repo: '仓库', lit: '文献' };
-  var FLAGTIP = { guess: '合理默认值，未经你的传感器实测，请替换', repo: '取自你的 Gelsight_controller 仓库', lit: '典型文献 / 手册值' };
+  function flagTxt(f) { return { guess: '⚠', repo: tr('仓库', 'repo'), lit: tr('文献', 'lit') }[f]; }
+  function flagTip(f) {
+    return { guess: tr('合理默认值，未经实测，请换成你的传感器参数', 'Reasonable default, not measured on a real sensor; replace it with your own value'),
+      repo: tr('取自作者的 Gelsight_controller 仓库', "Taken from the author's Gelsight_controller repository"),
+      lit: tr('典型文献 / 手册值', 'Typical literature / datasheet value') }[f];
+  }
 
   /* ---------- panel ---------- */
   var refreshers = [];
   function onParam() { paramsChanged(); refreshers.forEach(function (f) { f(); }); }
   function flagEl(spec) {
     if (!spec.flag) return null;
-    var f = el('span', { class: 'flag ' + spec.flag, title: FLAGTIP[spec.flag] + (spec.note ? '\n' + spec.note : '') }, FLAGTXT[spec.flag]);
+    var nt = noteOf(spec), f = el('span', { class: 'flag ' + spec.flag, title: flagTip(spec.flag) + (nt ? '\n' + nt : '') }, flagTxt(spec.flag));
     return f;
   }
   function makeRow(group, spec, host) {
@@ -1609,21 +1674,21 @@ var GSP = (function () {
       row = el('label', { class: 'prow bool' });
       var cb = el('input', { type: 'checkbox' }); cb.checked = !!getK(path);
       cb.addEventListener('change', function () { setK(path, cb.checked); onParam(); });
-      row.appendChild(cb); var sp = el('span', { class: 'lbl' }, spec.label); row.appendChild(sp);
+      row.appendChild(cb); var sp = el('span', { class: 'lbl' }, lab(spec)); row.appendChild(sp);
       refreshers.push(function () { cb.checked = !!getK(path); });
     } else if (spec.type === 'select') {
       row = el('div', { class: 'prow' });
-      var lb = el('span', { class: 'lbl' }, spec.label); row.appendChild(lb);
+      var lb = el('span', { class: 'lbl' }, lab(spec)); row.appendChild(lb);
       var sel = el('select');
-      spec.options.forEach(function (o) { var op = el('option', { value: String(o[0]) }, o[1]); sel.appendChild(op); });
+      spec.options.forEach(function (o) { var op = el('option', { value: String(o[0]) }, optLabel(o)); sel.appendChild(op); });
       sel.value = String(getK(path));
       sel.addEventListener('change', function () { var v = sel.value, num = parseFloat(v); setK(path, isNaN(num) || String(num) !== v ? v : num); onParam(); });
       row.appendChild(sel);
       refreshers.push(function () { sel.value = String(getK(path)); });
     } else {
       row = el('div', { class: 'prow' });
-      var l2 = el('span', { class: 'lbl' }, spec.label); var fl = flagEl(spec); if (fl) l2.appendChild(fl);
-      if (spec.note && !spec.flag) l2.title = spec.note;
+      var l2 = el('span', { class: 'lbl' }, lab(spec)); var fl = flagEl(spec); if (fl) l2.appendChild(fl);
+      if (noteOf(spec) && !spec.flag) l2.title = noteOf(spec);
       row.appendChild(l2);
       var rg = el('input', { type: 'range', min: spec.min, max: spec.max, step: spec.step });
       var nb = el('input', { type: 'number', min: spec.min, max: spec.max, step: spec.step });
@@ -1650,17 +1715,17 @@ var GSP = (function () {
     var sec = el('section', { class: 'factor', 'data-f': id });
     var hd = el('header');
     if (id !== 'sensor') {
-      var sw = el('label', { class: 'switch', title: '开 / 关此因素' });
-      var cb = el('input', { type: 'checkbox', 'aria-label': TITLES[id][0] });
+      var sw = el('label', { class: 'switch', title: tr('开 / 关此因素', 'Turn this factor on / off') });
+      var cb = el('input', { type: 'checkbox', 'aria-label': title(id)[0] });
       cb.checked = !!P[id].on; cb.disabled = !READY[id];
       cb.addEventListener('change', function () { P[id].on = cb.checked; onParam(); });
       sw.appendChild(cb); sw.appendChild(el('span')); hd.appendChild(sw);
       refreshers.push(function () { cb.checked = !!P[id].on; sec.classList.toggle('off', !P[id].on); });
     }
-    hd.appendChild(el('h2', null, TITLES[id][0] + (TITLES[id][1] ? '<small>' + TITLES[id][1] + '</small>' : '')));
+    hd.appendChild(el('h2', null, title(id)[0] + (title(id)[1] ? '<small>' + title(id)[1] + '</small>' : '')));
     sec.appendChild(hd);
     var body = el('div', { class: 'body' });
-    var det = el('details', { class: 'note' }); det.appendChild(el('summary', null, READY[id] ? '模型与简化' : '计划')); det.appendChild(el('div', null, NOTES[id]));
+    var det = el('details', { class: 'note' }); det.appendChild(el('summary', null, READY[id] ? tr('模型与简化', 'Model and simplifications') : tr('计划', 'Planned'))); det.appendChild(el('div', null, notes(id)));
     if (!READY[id]) det.open = true;
     body.appendChild(det);
     if (READY[id] || id === 'sensor') GSP.schema[id].forEach(function (spec) { makeRow(id, spec, body); });
@@ -1670,10 +1735,11 @@ var GSP = (function () {
     return sec;
   }
   function buildLEDs(host) {
-    host.appendChild(el('div', { class: 'msg', style: 'margin-top:8px' }, 'LED（等效位置：方位角 0° = 右、90° = 上；距离 = 到视场中心的水平距离；高度 = 涂层下方朝相机方向的距离；仰角 = 发光轴朝涂层抬起的角度）'));
+    host.appendChild(el('div', { class: 'msg', style: 'margin-top:8px' }, tr('LED（等效位置：方位角 0° = 右、90° = 上；距离 = 到视场中心的水平距离；高度 = 涂层下方朝相机方向的距离；仰角 = 发光轴朝涂层抬起的角度）',
+      'LEDs (effective positions: azimuth 0° = right, 90° = top; distance = horizontal distance from the centre of the field of view; height = distance below the coating, toward the camera; tilt = how far the emission axis is raised toward the coating)')));
     var wrapT = el('div', { class: 'led-scroll' }), tb = el('table', { class: 'leds' });
-    var thead = '<tr><th>开</th>' + GSP.ledCols.map(function (c) {
-      return '<th>' + c.label + (c.unit ? ' ' + c.unit : '') + (c.flag ? ' <span class="flag ' + c.flag + '" title="' + FLAGTIP[c.flag] + '">' + FLAGTXT[c.flag] + '</span>' : '') + '</th>';
+    var thead = '<tr><th>' + tr('开', 'On') + '</th>' + GSP.ledCols.map(function (c) {
+      return '<th>' + lab(c) + (c.unit ? ' ' + c.unit : '') + (c.flag ? ' <span class="flag ' + c.flag + '" title="' + flagTip(c.flag).replace(/"/g, '&quot;') + '">' + flagTxt(c.flag) + '</span>' : '') + '</th>';
     }).join('') + '</tr>';
     tb.innerHTML = '<thead>' + thead + '</thead>';
     var tbody = el('tbody'); tb.appendChild(tbody);
@@ -1700,7 +1766,7 @@ var GSP = (function () {
     render();
     wrapT.appendChild(tb); host.appendChild(wrapT);
     var bar = el('div', { class: 'row' });
-    var add = el('button', { class: 'btn' }, '+ LED'), del = el('button', { class: 'btn' }, '− 最后一颗');
+    var add = el('button', { class: 'btn' }, '+ LED'), del = el('button', { class: 'btn' }, tr('− 最后一颗', '− last LED'));
     add.addEventListener('click', function () { if (P.f3.leds.length >= 8) return; var L = clone(P.f3.leds[P.f3.leds.length - 1] || GSP.defaults().f3.leds[0]); L.az = (L.az + 45) % 360; P.f3.leds.push(L); render(); onParam(); });
     del.addEventListener('click', function () { if (P.f3.leds.length <= 1) return; P.f3.leds.pop(); render(); onParam(); });
     bar.appendChild(add); bar.appendChild(del); host.appendChild(bar);
@@ -1708,11 +1774,12 @@ var GSP = (function () {
     host.appendChild(mixWrap);
     refreshers.push(function () {
       var on = P.f3.on && P.f3.spectral, rows = ['R', 'G', 'B'];
-      var h = '<div class="msg">相机响应混合矩阵（每列一颗 LED；' + (on ? '光谱串色已开启' : '串色关闭：名义通道') + '）</div><table class="mix"><tr><th></th>';
+      var h = '<div class="msg">' + tr('相机响应混合矩阵（每列一颗 LED；' + (on ? '光谱串色已开启' : '串色关闭：名义通道') + '）',
+        'Camera response mixing matrix (one column per LED; ' + (on ? 'spectral crosstalk on' : 'crosstalk off: nominal channels') + ')') + '</div><table class="mix"><tr><th></th>';
       var resp = P.f3.leds.map(function (L) { return GS.ledResponse(L, on); });
       P.f3.leds.forEach(function (L, i) { h += '<th>' + L.type + (i + 1) + '</th>'; });
       h += '</tr>';
-      rows.forEach(function (r, c) { h += '<tr><th>相机 ' + r + '</th>' + resp.map(function (v) { return '<td>' + (v[c] * 100).toFixed(0) + '%</td>'; }).join('') + '</tr>'; });
+      rows.forEach(function (r, c) { h += '<tr><th>' + tr('相机 ', 'Camera ') + r + '</th>' + resp.map(function (v) { return '<td>' + (v[c] * 100).toFixed(0) + '%</td>'; }).join('') + '</tr>'; });
       mixWrap.innerHTML = h + '</table>';
     });
   }
@@ -1726,15 +1793,15 @@ var GSP = (function () {
   function buildChips() {
     var host = $('#chips');
     ['f1', 'f2', 'f3', 'f4', 'f5', 'f6'].forEach(function (id) {
-      var b = el('button', { class: 'chip', 'aria-pressed': String(!!P[id].on), title: TITLES[id][0] + ' 开 / 关' }, TITLES[id][0]);
+      var b = el('button', { class: 'chip', 'aria-pressed': String(!!P[id].on), title: title(id)[0] + tr(' 开 / 关', ' on / off') }, title(id)[0]);
       b.disabled = !READY[id];
       b.addEventListener('click', function () { P[id].on = !P[id].on; onParam(); });
       refreshers.push(function () { b.setAttribute('aria-pressed', String(!!P[id].on)); });
       host.appendChild(b);
     });
-    [['理想（全关）', function () { ['f1', 'f2', 'f3', 'f4', 'f5', 'f6'].forEach(function (id) { P[id].on = false; }); }],
-     ['全开', function () { ['f1', 'f2', 'f3', 'f4', 'f5', 'f6'].forEach(function (id) { if (READY[id]) P[id].on = true; }); }],
-     ['恢复默认参数', function () { var ind = P.indenter; P = GSP.defaults(); P.indenter = ind; rebuildPanel(); }]].forEach(function (p) {
+    [[tr('理想（全关）', 'Ideal (all off)'), function () { ['f1', 'f2', 'f3', 'f4', 'f5', 'f6'].forEach(function (id) { P[id].on = false; }); }],
+     [tr('全开', 'All on'), function () { ['f1', 'f2', 'f3', 'f4', 'f5', 'f6'].forEach(function (id) { if (READY[id]) P[id].on = true; }); }],
+     [tr('恢复默认参数', 'Reset parameters'), function () { var ind = P.indenter; P = GSP.defaults(); P.indenter = ind; rebuildPanel(); }]].forEach(function (p) {
       var b = el('button', { class: 'chip preset' }, p[0]);
       b.addEventListener('click', function () { p[1](); onParam(); });
       host.appendChild(b);
@@ -1763,13 +1830,13 @@ var GSP = (function () {
   function buildIndenterKV() {
     var host = $('#indKV'); host.innerHTML = '';
     var rows = [];
-    if (P.indenter.shape === 'sphere') rows.push(['ballR', '球半径', 1, 10, 0.1, 'mm', 'repo', '你的 calibrate_gelsight.py：BallRad = 11/2 mm']);
-    if (P.f2.on && P.f2.control === 'force') rows.push(['force', '目标法向力', 0.05, 20, 0.05, 'N']);
-    else rows.push(['depth', '压入深度 δ', 0.05, 2.5, 0.01, 'mm']);
-    if (P.indenter.shape !== 'sphere') rows.push(['rot', '旋转', -180, 180, 1, '°']);
+    if (P.indenter.shape === 'sphere') rows.push(['ballR', tr('球半径', 'Ball radius'), 1, 10, 0.1, 'mm', 'repo', tr('作者的 calibrate_gelsight.py：BallRad = 11/2 mm', "The author's calibrate_gelsight.py: BallRad = 11/2 mm")]);
+    if (P.f2.on && P.f2.control === 'force') rows.push(['force', tr('目标法向力', 'Target normal force'), 0.05, 20, 0.05, 'N']);
+    else rows.push(['depth', tr('压入深度 δ', 'Indentation depth δ'), 0.05, 2.5, 0.01, 'mm']);
+    if (P.indenter.shape !== 'sphere') rows.push(['rot', tr('旋转', 'Rotation'), -180, 180, 1, '°']);
     rows.forEach(function (r) {
-      var lab = el('label', null, r[1]);
-      if (r[6]) lab.appendChild(document.createTextNode(' ')), lab.appendChild(el('span', { class: 'flag ' + r[6], title: r[7] }, FLAGTXT[r[6]]));
+      var lbl = el('label', null, r[1]);
+      if (r[6]) lbl.appendChild(document.createTextNode(' ')), lbl.appendChild(el('span', { class: 'flag ' + r[6], title: r[7] }, flagTxt(r[6])));
       var rg = el('input', { type: 'range', min: r[2], max: r[3], step: r[4] }); rg.value = P.indenter[r[0]];
       var out = el('output', null, (+P.indenter[r[0]]).toFixed(r[4] < 0.1 ? 2 : (r[4] < 1 ? 1 : 0)) + ' ' + r[5]);
       rg.addEventListener('input', function () {
@@ -1777,7 +1844,7 @@ var GSP = (function () {
         out.textContent = (+rg.value).toFixed(r[4] < 0.1 ? 2 : (r[4] < 1 ? 1 : 0)) + ' ' + r[5];
         geomChanged();
       });
-      host.appendChild(lab); host.appendChild(rg); host.appendChild(out);
+      host.appendChild(lbl); host.appendChild(rg); host.appendChild(out);
       refreshers.push(function () { if (parseFloat(rg.value) !== P.indenter[r[0]]) { rg.value = P.indenter[r[0]]; rg.dispatchEvent(new Event('input')); } });
     });
   }
@@ -1880,22 +1947,23 @@ var GSP = (function () {
     if (view === 'diff') {
       var b = bgSim.img, g = 3;
       for (i = 0; i < 4 * N; i += 4) { d[i] = 128 + g * (src.img[i] - b[i]); d[i + 1] = 128 + g * (src.img[i + 1] - b[i + 1]); d[i + 2] = 128 + g * (src.img[i + 2] - b[i + 2]); d[i + 3] = 255; }
-      return '差分 = (当前 − 无接触背景) × 3 + 128，与 lookup table 方法的输入一致';
+      return tr('差分 = (当前 − 无接触背景) × 3 + 128，与 lookup table 方法的输入一致', 'Difference = (current − no-contact background) × 3 + 128, the input used by lookup-table methods');
     }
     if (view === 'height') {
       var mx = 1e-6, mn = 0; for (i = 0; i < N; i++) { if (src.HU[i] > mx) mx = src.HU[i]; if (src.HU[i] < mn) mn = src.HU[i]; }
       var lo = Math.min(mn, -0.05 * mx), sc = 1 / (mx - lo);
       for (i = 0; i < N; i++) { v = ((src.HU[i] - lo) * sc * 255) | 0; v = v < 0 ? 0 : (v > 255 ? 255 : v); d[4 * i] = LUT[3 * v]; d[4 * i + 1] = LUT[3 * v + 1]; d[4 * i + 2] = LUT[3 * v + 2]; d[4 * i + 3] = 255; }
-      return '高度 u（朝相机为正）：' + lo.toFixed(3) + ' … ' + mx.toFixed(3) + ' mm；最低处 = 周围鼓起 ' + mn.toFixed(3) + ' mm';
+      return tr('高度 u（朝相机为正）：' + lo.toFixed(3) + ' … ' + mx.toFixed(3) + ' mm；最低处 = 周围鼓起 ' + mn.toFixed(3) + ' mm',
+        'Height u (toward camera +): ' + lo.toFixed(3) + ' … ' + mx.toFixed(3) + ' mm; minimum = surrounding bulge ' + mn.toFixed(3) + ' mm');
     }
     if (view === 'normal') {
       for (i = 0; i < N; i++) { d[4 * i] = 127.5 * (src.HN[3 * i] + 1); d[4 * i + 1] = 127.5 * (src.HN[3 * i + 1] + 1); d[4 * i + 2] = 127.5 * (src.HN[3 * i + 2] + 1); d[4 * i + 3] = 255; }
-      return '法向 (nx, ny, nz) → RGB = (n + 1)/2；与图像像素逐点对齐';
+      return tr('法向 (nx, ny, nz) → RGB = (n + 1)/2；与图像像素逐点对齐', 'Normals (nx, ny, nz) → RGB = (n + 1)/2, registered to the image pixels');
     }
     if (view === 'pressure') {
       var pm = 1e-9; for (i = 0; i < N; i++) if (src.HP[i] > pm) pm = src.HP[i];
       for (i = 0; i < N; i++) { v = (src.HP[i] / pm * 255) | 0; d[4 * i] = LUT[3 * v]; d[4 * i + 1] = LUT[3 * v + 1]; d[4 * i + 2] = LUT[3 * v + 2]; d[4 * i + 3] = 255; }
-      return P.f2.on ? '接触压力：0 … ' + pm.toFixed(1) + ' kPa（求解网格分辨率）' : '需要开启 ② 胶体变形';
+      return P.f2.on ? tr('接触压力：0 … ' + pm.toFixed(1) + ' kPa（求解网格分辨率）', 'Contact pressure: 0 … ' + pm.toFixed(1) + ' kPa (solver-grid resolution)') : tr('需要开启 ② 胶体变形', 'Requires ② gel deformation');
     }
     return '';
   }
@@ -1912,7 +1980,7 @@ var GSP = (function () {
         for (var j = 0; j < H; j++) for (var i = 0; i < xs; i++) { var o = 4 * (j * W + i); d[o] = tmp[o]; d[o + 1] = tmp[o + 1]; d[o + 2] = tmp[o + 2]; }
       } else {
         for (var k = 0; k < d.length; k += 4) { d[k] = 4 * Math.abs(d[k] - tmp[k]); d[k + 1] = 4 * Math.abs(d[k + 1] - tmp[k + 1]); d[k + 2] = 4 * Math.abs(d[k + 2] - tmp[k + 2]); }
-        legend = '|当前 − A| × 4（' + viewName(st.view) + '）';
+        legend = tr('|当前 − A| × 4（' + viewName(st.view) + '）', '|current − A| × 4 (' + viewName(st.view) + ')');
       }
     }
     offx.putImageData(buf, 0, 0);
@@ -1922,8 +1990,9 @@ var GSP = (function () {
       var xl = st.split * cw;
       ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2 * dpr; ctx.beginPath(); ctx.moveTo(xl, 0); ctx.lineTo(xl, ch); ctx.stroke();
       ctx.fillStyle = 'rgba(20,24,29,0.65)'; ctx.font = (11 * dpr) + 'px ' + FONT;
-      ctx.fillRect(xl - 26 * dpr, ch - 22 * dpr, 22 * dpr, 16 * dpr); ctx.fillRect(xl + 4 * dpr, ch - 22 * dpr, 34 * dpr, 16 * dpr);
-      ctx.fillStyle = '#fff'; ctx.fillText('A', xl - 19 * dpr, ch - 10 * dpr); ctx.fillText('当前', xl + 8 * dpr, ch - 10 * dpr);
+      var curTxt = tr('当前', 'current'), cwid = ctx.measureText(curTxt).width + 8 * dpr;
+      ctx.fillRect(xl - 26 * dpr, ch - 22 * dpr, 22 * dpr, 16 * dpr); ctx.fillRect(xl + 4 * dpr, ch - 22 * dpr, cwid, 16 * dpr);
+      ctx.fillStyle = '#fff'; ctx.fillText('A', xl - 19 * dpr, ch - 10 * dpr); ctx.fillText(curTxt, xl + 8 * dpr, ch - 10 * dpr);
     }
     if (st.view === 'height') drawProfile(cw, ch);
     // indenter centre marker
@@ -1933,7 +2002,8 @@ var GSP = (function () {
     $('#legend').textContent = legend;
     $('#hud').textContent = viewName(st.view) + ' · ' + W + '×' + H + ' · ' + (fovW / W * 1000).toFixed(0) + ' µm/px';
   }
-  function viewName(v) { return { cam: '相机图像', diff: '差分', height: '高度', normal: '法向', pressure: '压力' }[v]; }
+  function viewName(v) { return (LANG === 'en' ? { cam: 'Camera image', diff: 'Difference', height: 'Height', normal: 'Normals', pressure: 'Pressure' }
+    : { cam: '相机图像', diff: '差分', height: '高度', normal: '法向', pressure: '压力' })[v]; }
   function drawProfile(cw, ch) {
     var fovW = P.sensor.fovW, fovH = fovW * 0.75, row = GS.clamp(Math.round((st.y / fovH + 0.5) * H - 0.5), 0, H - 1);
     var yl = (row + 0.5) / H * ch, bh = Math.round(ch * 0.3), top = row < H / 2 ? ch - bh : 0;
@@ -1956,19 +2026,21 @@ var GSP = (function () {
     for (i = 0; i < W; i++) { var X2 = (i + 0.5) / W * cw, Y2 = Y(sim.HU[row * W + i]); if (i) ctx.lineTo(X2, Y2); else ctx.moveTo(X2, Y2); }
     ctx.stroke();
     ctx.font = '600 ' + (11 * dpr) + 'px ' + FONT; ctx.fillStyle = '#66717d';
-    ctx.fillText('剖面（朝相机为正）：— 胶体表面   - - 压头表面（理想模型 = max(0, 压头)）', pad, top + 13 * dpr);
+    ctx.fillText(tr('剖面（朝相机为正）：— 胶体表面   - - 压头表面（理想模型 = max(0, 压头)）', 'Profile (toward camera +): — gel surface   - - indenter surface (ideal model = max(0, indenter))'), pad, top + 13 * dpr);
   }
 
   /* ---------- readouts ---------- */
   var ro = $('#ro');
-  var RO = [['F', '法向力'], ['Ft', '切向力 / 扭矩'], ['state', '状态'], ['A', '接触面积'], ['umax', '最大压入'], ['umin', '周围鼓起'], ['sol', '求解 迭代/残差'], ['t', '用时 力学/光照/相机'], ['fps', '帧率']];
-  RO.forEach(function (r) { var d = el('div'); d.appendChild(el('dt', null, r[1])); var dd = el('dd', { id: 'ro-' + r[0] }, '–'); d.appendChild(dd); ro.appendChild(d); });
+  var RO = [['F', '法向力', 'Normal force'], ['Ft', '切向力 / 扭矩', 'Shear force / torque'], ['state', '状态', 'State'], ['A', '接触面积', 'Contact area'],
+    ['umax', '最大压入', 'Max indentation'], ['umin', '周围鼓起', 'Surrounding bulge'], ['sol', '求解 迭代/残差', 'Solver iters / residual'],
+    ['t', '用时 力学/光照/相机', 'Time: mechanics / light / camera'], ['fps', '帧率', 'Frame rate']];
+  RO.forEach(function (r) { var d = el('div'); d.appendChild(el('dt', { id: 'rol-' + r[0] }, tr(r[1], r[2]))); var dd = el('dd', { id: 'ro-' + r[0] }, '–'); d.appendChild(dd); ro.appendChild(d); });
   var lastRO = 0;
   function readouts() {
     var now = performance.now(); if (now - lastRO < 120) return; lastRO = now;
     var s = sim.gel.stats, mech = P.f2.on, mn = 0, mx = 0;
     for (var i = 0; i < sim.HU.length; i++) { if (sim.HU[i] < mn) mn = sim.HU[i]; if (sim.HU[i] > mx) mx = sim.HU[i]; }
-    $('#ro-F').textContent = mech ? s.F.toFixed(3) + ' N' + (P.f2.hyper ? ' *' : '') : '— (②关)';
+    $('#ro-F').textContent = mech ? s.F.toFixed(3) + ' N' + (P.f2.hyper ? ' *' : '') : tr('— (②关)', '— (② off)');
     var area = 0; for (i = 0; i < sim.HM.length; i++) area += sim.HM[i];
     var dp = P.sensor.fovW / W;
     $('#ro-A').textContent = (area * dp * dp).toFixed(1) + ' mm²';
@@ -1978,8 +2050,8 @@ var GSP = (function () {
     $('#ro-t').textContent = timing.geom.toFixed(0) + ' / ' + timing.light.toFixed(0) + ' / ' + (timing.proj + timing.cam).toFixed(0) + ' ms';
     $('#ro-fps').textContent = fps ? fps.toFixed(0) + ' fps' : '–';
     var on6 = P.f6.on && P.f2.on;
-    $('#ro-Ft').textContent = on6 ? shearOut.Ft.toFixed(2) + ' N / ' + shearOut.T.toFixed(2) + ' N·mm' : '— (⑥关)';
-    $('#ro-state').textContent = !(st.d > 0.01) ? '未接触' : (on6 ? (shearOut.slip ? '滑动' : '粘着') : '接触');
+    $('#ro-Ft').textContent = on6 ? shearOut.Ft.toFixed(2) + ' N / ' + shearOut.T.toFixed(2) + ' N·mm' : tr('— (⑥关)', '— (⑥ off)');
+    $('#ro-state').textContent = !(st.d > 0.01) ? tr('未接触', 'no contact') : (on6 ? (shearOut.slip ? tr('滑动', 'sliding') : tr('粘着', 'sticking')) : tr('接触', 'in contact'));
     $('#ro-state').style.color = shearOut.slip ? '#b4530f' : '';
   }
 
@@ -2016,7 +2088,8 @@ var GSP = (function () {
   Array.prototype.slice.call(document.querySelectorAll('.tab')).forEach(function (b, _, all) {
     b.addEventListener('click', function () { st.view = b.dataset.view; all.forEach(function (o) { o.setAttribute('aria-selected', String(o === b)); }); drawDirty = true; draw(); });
   });
-  $('#snapA').addEventListener('click', function () { A = snapshot(); $('#aInfo').textContent = 'A 已存（' + new Date().toLocaleTimeString() + '）'; if (st.ab === 'off') setAB('split'); draw(); });
+  function aInfoText() { return tr('A 已存（' + A.time + '）', 'A stored (' + A.time + ')'); }
+  $('#snapA').addEventListener('click', function () { A = snapshot(); A.time = new Date().toLocaleTimeString(); $('#aInfo').textContent = aInfoText(); if (st.ab === 'off') setAB('split'); draw(); });
   function setAB(m) { st.ab = m; Array.prototype.forEach.call(document.querySelectorAll('#abmode button'), function (o) { o.setAttribute('aria-pressed', String(o.dataset.ab === m)); }); $('#split').disabled = m !== 'split'; draw(); }
   Array.prototype.forEach.call(document.querySelectorAll('#abmode button'), function (b) { b.addEventListener('click', function () { setAB(b.dataset.ab); }); });
   $('#split').addEventListener('input', function () { st.split = parseFloat($('#split').value); draw(); });
@@ -2025,7 +2098,7 @@ var GSP = (function () {
   /* =====================================================================
      Export
      ===================================================================== */
-  var README = [
+  var README_ZH = [
     'GelSight 类视触觉传感器仿真 — 导出数据说明',
     '',
     '坐标约定：x 向右（图像列），y 向下（图像行），z 从涂层指向相机。',
@@ -2050,7 +2123,33 @@ var GSP = (function () {
     '像素尺寸 = 视场宽度 / 图像宽度（见 config.json: sensor.fovW）。',
     'Python 读取示例见 load_example.py。'
   ].join('\n');
-  var PY = [
+  var README_EN = [
+    'GelSight-type tactile sensor simulator: exported data',
+    '',
+    'Coordinates: x right (image columns), y down (image rows), z from the coating toward the camera.',
+    'Height u: coating displacement toward the camera (mm); positive where pressed in, negative where the gel bulges.',
+    'All ground-truth maps are registered to the camera pixels: with perspective/refraction parallax on, each value belongs to the surface point that pixel sees.',
+    '  With parallax on, normal / gradient are the true surface normal / gradient at that point; np.gradient of the resampled height',
+    '  can differ slightly where the parallax is large, so use normal.npy / gradient.npy as targets when training a network to replace the lookup table.',
+    '',
+    'Per sample:',
+    '  *_image.png     8-bit RGB simulated camera image (PNG with alpha = 255; take RGB after loading)',
+    '  *_height.npy    float32 (H, W), mm',
+    '  *_normal.npy    float32/float16 (H, W, 3), unit normal n ∝ (−∂u/∂x, −∂u/∂y, 1)',
+    '  *_gradient.npy  float32/float16 (H, W, 2), (∂u/∂x, ∂u/∂y), dimensionless (optional)',
+    '  *_mask.png      contact area (gel within 10 µm of the indenter surface), 0/255',
+    '  *_pressure.npy  float32 (H, W), contact pressure in kPa (nearest solver cell, optional)',
+    '  *_linear.npy    float32 (H, W, 3), linear radiance before the camera (arbitrary units, optional)',
+    'background.png    no-contact frame with the same settings (independent noise); lookup tables and networks usually take image − background',
+    'background_clean.png  the same without noise (like an average of many frames)',
+    'config.json       {"params": all simulation parameters, ...} at export time',
+    'meta*.jsonl       one line per sample: shape, position, depth, rotation, normal force, contact area, noise seed (meta_partNNN.jsonl when split into ZIP parts)',
+    '',
+    'Pixel size = field-of-view width / image width (config.json: sensor.fovW).',
+    'See load_example.py for reading the data in Python.'
+  ].join('\n');
+  function readme() { return LANG === 'en' ? README_EN : README_ZH; }
+  function py() { return [
     'import json, numpy as np',
     'from PIL import Image',
     '',
@@ -2065,12 +2164,12 @@ var GSP = (function () {
     'import glob',
     'meta = [json.loads(l) for f in sorted(glob.glob("meta*.jsonl")) for l in open(f)]',
     'img, h, n = load(meta[0]["id"])',
-    'diff = img.astype(np.float32) - bg                        # LUT / 网络输入',
+    'diff = img.astype(np.float32) - bg                        # ' + tr('LUT / 网络输入', 'LUT / network input'),
     'grad = -n[..., :2] / n[..., 2:3]                          # (du/dx, du/dy)',
     'px = cfg["sensor"]["fovW"] / img.shape[1]                 # mm / pixel',
-    'gy, gx = np.gradient(h, px)                               # 与 grad 一致性检查',
+    'gy, gx = np.gradient(h, px)                               # ' + tr('与 grad 一致性检查', 'consistency check against grad'),
     'print(img.shape, h.min(), h.max(), np.abs(gx - grad[..., 0]).mean())'
-  ].join('\n');
+  ].join('\n'); }
   function pngBytes(rgba, w, h) {
     return new Promise(function (res) {
       var c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -2107,7 +2206,7 @@ var GSP = (function () {
     z.add('config.json', JSON.stringify({ params: P, exposure_k: expo.k, width: W, height: H, generator: 'gelsight-sim stage ' + STAGE }, null, 1));
     z.add('meta.jsonl', JSON.stringify({ id: 'frame', shape: P.indenter.shape, ballR: P.indenter.ballR, text: P.indenter.text, x_mm: st.x, y_mm: st.y,
       depth_mm: st.d, rot_deg: th, force_N: P.f2.on ? sim.gel.stats.F : null, solver_err: sim.gel.stats.err, seed: frameSeed, width: W, height: H }) + '\n');
-    z.add('README.txt', README); z.add('load_example.py', PY);
+    z.add('README.txt', readme()); z.add('load_example.py', py());
     download(new Blob(z.finish(), { type: 'application/zip' }), 'gelsight_frame_' + stamp() + '.zip');
   }
 
@@ -2115,42 +2214,43 @@ var GSP = (function () {
   var batch = { running: false, cancel: false };
   function buildExport() {
     var sec = el('section', { class: 'factor exp' });
-    sec.appendChild(el('header', null, '<h2>导出<small>高度图 / 法向图 与仿真图像成对保存</small></h2>'));
+    sec.appendChild(el('header', null, '<h2>' + tr('导出', 'Export') + '<small>' + tr('高度图 / 法向图 与仿真图像成对保存', 'height / normal maps paired with simulated images') + '</small></h2>'));
     var body = el('div', { class: 'body' });
     body.innerHTML =
-      '<fieldset><legend>内容</legend><div class="grid2">' +
-      '<label><input type="checkbox" id="xNormal" checked> 法向 normal.npy</label>' +
-      '<label><input type="checkbox" id="xGrad" checked> 梯度 gradient.npy</label>' +
-      '<label><input type="checkbox" id="xMask" checked> 接触掩膜 mask.png</label>' +
-      '<label><input type="checkbox" id="xPress"> 压力 pressure.npy</label>' +
-      '<label><input type="checkbox" id="xLinear"> 线性辐亮度 linear.npy</label>' +
-      '<label><input type="checkbox" id="xF16"> 法向/梯度用 float16</label>' +
-      '</div><div class="row"><button class="btn" id="xFrame">导出当前帧 (.zip)</button><span class="msg">高度图始终为 float32（mm）。</span></div></fieldset>' +
-      '<fieldset><legend>批量生成数据集</legend><div class="grid2">' +
-      '<label>样本数 <input type="number" id="bN" value="200" min="1" max="100000"></label>' +
-      '<label>分辨率 <select id="bRes"><option value="320">320×240</option><option value="640">640×480</option></select></label>' +
-      '<label>求解网格 <select id="bGrid"><option value="0.3">0.30 mm（快）</option><option value="0.15">0.15 mm（精，约慢 8 倍）</option></select></label>' +
-      '<label>随机种子 <input type="number" id="bSeed" value="1"></label>' +
-      '<label>压深 <input type="number" id="bD0" value="0.2" step="0.05"> – <input type="number" id="bD1" value="1.5" step="0.05"> mm</label>' +
-      '<label>球半径 <input type="number" id="bR0" value="2" step="0.5"> – <input type="number" id="bR1" value="6" step="0.5"> mm</label>' +
-      '<label>位置内缩 <input type="number" id="bMargin" value="3" step="0.5"> mm</label>' +
-      '<label>每个 ZIP 样本数 <input type="number" id="bChunk" value="250" min="10"></label>' +
-      '<label title="需开启 ⑥；方向随机，幅值均匀分布，并受摩擦极限约束">切向位移 ≤ <input type="number" id="bShear" value="0" step="0.1" min="0"> mm</label>' +
-      '<label style="grid-column:1/-1">形状 ' +
-        '<label><input type="checkbox" class="bShape" value="sphere" checked>球</label> <label><input type="checkbox" class="bShape" value="cylinder" checked>圆柱</label> ' +
-        '<label><input type="checkbox" class="bShape" value="cube" checked>方块</label> <label><input type="checkbox" class="bShape" value="screw" checked>螺丝头</label> ' +
-        '<label><input type="checkbox" class="bShape" value="letter" checked>字母</label></label>' +
-      '<label style="grid-column:1/-1">字母池 <input type="text" class="wide" id="bLetters" value="ABCDEFGHJKLMNPRSTUVWXYZ23456789"></label>' +
+      '<fieldset><legend>' + tr('内容', 'Contents') + '</legend><div class="grid2">' +
+      '<label><input type="checkbox" id="xNormal" checked> ' + tr('法向', 'Normals') + ' normal.npy</label>' +
+      '<label><input type="checkbox" id="xGrad" checked> ' + tr('梯度', 'Gradient') + ' gradient.npy</label>' +
+      '<label><input type="checkbox" id="xMask" checked> ' + tr('接触掩膜', 'Contact mask') + ' mask.png</label>' +
+      '<label><input type="checkbox" id="xPress"> ' + tr('压力', 'Pressure') + ' pressure.npy</label>' +
+      '<label><input type="checkbox" id="xLinear"> ' + tr('线性辐亮度', 'Linear radiance') + ' linear.npy</label>' +
+      '<label><input type="checkbox" id="xF16"> ' + tr('法向/梯度用 float16', 'float16 for normals / gradients') + '</label>' +
+      '</div><div class="row"><button class="btn" id="xFrame">' + tr('导出当前帧 (.zip)', 'Export current frame (.zip)') + '</button><span class="msg">' + tr('高度图始终为 float32（mm）。', 'Height maps are always float32 (mm).') + '</span></div></fieldset>' +
+      '<fieldset><legend>' + tr('批量生成数据集', 'Batch dataset') + '</legend><div class="grid2">' +
+      '<label>' + tr('样本数', 'Samples') + ' <input type="number" id="bN" value="200" min="1" max="100000"></label>' +
+      '<label>' + tr('分辨率', 'Resolution') + ' <select id="bRes"><option value="320">320×240</option><option value="640">640×480</option></select></label>' +
+      '<label>' + tr('求解网格', 'Solver grid') + ' <select id="bGrid"><option value="0.3">' + tr('0.30 mm（快）', '0.30 mm (fast)') + '</option><option value="0.15">' + tr('0.15 mm（精，约慢 8 倍）', '0.15 mm (fine, ~8× slower)') + '</option></select></label>' +
+      '<label>' + tr('随机种子', 'Random seed') + ' <input type="number" id="bSeed" value="1"></label>' +
+      '<label>' + tr('压深', 'Depth') + ' <input type="number" id="bD0" value="0.2" step="0.05"> – <input type="number" id="bD1" value="1.5" step="0.05"> mm</label>' +
+      '<label>' + tr('球半径', 'Ball radius') + ' <input type="number" id="bR0" value="2" step="0.5"> – <input type="number" id="bR1" value="6" step="0.5"> mm</label>' +
+      '<label>' + tr('位置内缩', 'Position margin') + ' <input type="number" id="bMargin" value="3" step="0.5"> mm</label>' +
+      '<label>' + tr('每个 ZIP 样本数', 'Samples per ZIP') + ' <input type="number" id="bChunk" value="250" min="10"></label>' +
+      '<label title="' + tr('需开启 ⑥；方向随机，幅值均匀分布，并受摩擦极限约束', 'Needs ⑥; random direction, uniform magnitude, limited by friction') + '">' + tr('切向位移 ≤', 'Tangential shift ≤') + ' <input type="number" id="bShear" value="0" step="0.1" min="0"> mm</label>' +
+      '<label style="grid-column:1/-1">' + tr('形状', 'Shapes') + ' ' +
+        '<label><input type="checkbox" class="bShape" value="sphere" checked>' + tr('球', 'Sphere') + '</label> <label><input type="checkbox" class="bShape" value="cylinder" checked>' + tr('圆柱', 'Cylinder') + '</label> ' +
+        '<label><input type="checkbox" class="bShape" value="cube" checked>' + tr('方块', 'Cube') + '</label> <label><input type="checkbox" class="bShape" value="screw" checked>' + tr('螺丝头', 'Screw head') + '</label> ' +
+        '<label><input type="checkbox" class="bShape" value="letter" checked>' + tr('字母', 'Letters') + '</label></label>' +
+      '<label style="grid-column:1/-1">' + tr('字母池', 'Letter pool') + ' <input type="text" class="wide" id="bLetters" value="ABCDEFGHJKLMNPRSTUVWXYZ23456789"></label>' +
       '</div>' +
-      '<div class="row"><button class="btn primary" id="bFolder">写入文件夹（Chrome / Edge）</button><button class="btn" id="bZip">下载 ZIP</button><button class="btn" id="bCancel" disabled>取消</button></div>' +
-      '<progress id="bProg" max="1" value="0"></progress><div class="msg" id="bMsg">每个样本：随机形状、位置、压深、旋转；冷启动求解到收敛（残差 &lt; 1e-5）；粘弹性在批量中关闭（取弹性平衡态）。参数用当前面板设置。</div></fieldset>';
+      '<div class="row"><button class="btn primary" id="bFolder">' + tr('写入文件夹（Chrome / Edge）', 'Write to folder (Chrome / Edge)') + '</button><button class="btn" id="bZip">' + tr('下载 ZIP', 'Download ZIP') + '</button><button class="btn" id="bCancel" disabled>' + tr('取消', 'Cancel') + '</button></div>' +
+      '<progress id="bProg" max="1" value="0"></progress><div class="msg" id="bMsg">' + tr('每个样本：随机形状、位置、压深、旋转；冷启动求解到收敛（残差 &lt; 1e-5）；粘弹性在批量中关闭（取弹性平衡态）。参数用当前面板设置。',
+        'Each sample: random shape, position, depth and rotation; solved from a cold start to convergence (residual &lt; 1e-5); viscoelasticity is off in batches (elastic equilibrium). Uses the current panel settings.') + '</div></fieldset>';
     sec.appendChild(body);
     setTimeout(function () {
-      $('#xFrame').addEventListener('click', function () { exportFrame().catch(function (e) { alert('导出失败：' + e); }); });
+      $('#xFrame').addEventListener('click', function () { exportFrame().catch(function (e) { alert(tr('导出失败：', 'Export failed: ') + e); }); });
       $('#bFolder').addEventListener('click', function () { startBatch('folder'); });
       $('#bZip').addEventListener('click', function () { startBatch('zip'); });
       $('#bCancel').addEventListener('click', function () { batch.cancel = true; });
-      if (!window.showDirectoryPicker) { $('#bFolder').disabled = true; $('#bFolder').title = '此浏览器不支持文件夹写入，请用 ZIP'; }
+      if (!window.showDirectoryPicker) { $('#bFolder').disabled = true; $('#bFolder').title = tr('此浏览器不支持文件夹写入，请用 ZIP', 'This browser cannot write to folders; use ZIP'); }
     }, 0);
     return sec;
   }
@@ -2171,12 +2271,12 @@ var GSP = (function () {
     if (batch.running) return;
     var N = Math.max(1, parseInt($('#bN').value, 10) || 1), res = parseInt($('#bRes').value, 10), w = res, h = res * 3 / 4;
     var shapes = Array.prototype.filter.call(document.querySelectorAll('.bShape'), function (c) { return c.checked; }).map(function (c) { return c.value; });
-    if (!shapes.length) { $('#bMsg').textContent = '至少选一种形状'; return; }
+    if (!shapes.length) { $('#bMsg').textContent = tr('至少选一种形状', 'Select at least one shape'); return; }
     var base = 'gelsight_dataset_' + stamp(), sink;
     try {
       if (mode === 'folder') { var root = await window.showDirectoryPicker({ mode: 'readwrite' }); sink = new FolderSink(await root.getDirectoryHandle(base, { create: true })); }
       else sink = new ZipSink(base);
-    } catch (e) { $('#bMsg').textContent = '已取消：' + e.message; return; }
+    } catch (e) { $('#bMsg').textContent = tr('已取消：', 'Cancelled: ') + e.message; return; }
     var cfg = { N: N, w: w, h: h, grid: parseFloat($('#bGrid').value), seed: parseInt($('#bSeed').value, 10) || 1,
       d0: parseFloat($('#bD0').value), d1: parseFloat($('#bD1').value), r0: parseFloat($('#bR0').value), r1: parseFloat($('#bR1').value),
       margin: parseFloat($('#bMargin').value), chunk: Math.max(10, parseInt($('#bChunk').value, 10) || 250), shapes: shapes,
@@ -2184,24 +2284,24 @@ var GSP = (function () {
     batch.running = true; batch.cancel = false;
     $('#bCancel').disabled = false; $('#bFolder').disabled = $('#bZip').disabled = true;
     try { await runBatch(cfg, sink, base); }
-    catch (e) { $('#bMsg').className = 'msg err'; $('#bMsg').textContent = '出错：' + e; console.error(e); }
+    catch (e) { $('#bMsg').className = 'msg err'; $('#bMsg').textContent = tr('出错：', 'Error: ') + e; console.error(e); }
     batch.running = false; $('#bCancel').disabled = true; $('#bFolder').disabled = !window.showDirectoryPicker; $('#bZip').disabled = false;
   }
   async function runBatch(cfg, sink, base) {
     var Pb = clone(P); Pb.f2.visco = false; Pb.f2.grid = cfg.grid; Pb.f2.control = 'depth';
     var S = new GS.Sim(cfg.w, cfg.h), B = new GS.Sim(cfg.w, cfg.h), msg = $('#bMsg'), prog = $('#bProg');
-    msg.className = 'msg'; msg.textContent = '渲染背景…';
+    msg.className = 'msg'; msg.textContent = tr('渲染背景…', 'Rendering background…');
     B.flat(); var ms = B.render(Pb, { measure: true });
     var ex = { k: 0.85 / Math.max(ms.p99, 1e-12), wb: [ms.mean[1] / Math.max(ms.mean[0], 1e-12), 1, ms.mean[1] / Math.max(ms.mean[2], 1e-12)] };
     var Pc = clone(Pb); Pc.f5.noise = false; B.render(Pc, { expo: ex, seed: 1 });
     var bgClean = await pngBytes(B.img, cfg.w, cfg.h);
     B.render(Pb, { expo: ex, seed: cfg.seed * 7919 + 13 });
     var common = [['config.json', JSON.stringify({ params: Pb, batch: cfg, exposure_k: ex.k, generator: 'gelsight-sim stage ' + STAGE }, null, 1)],
-      ['README.txt', README], ['load_example.py', PY], ['background.png', await pngBytes(B.img, cfg.w, cfg.h)], ['background_clean.png', bgClean]];
+      ['README.txt', readme()], ['load_example.py', py()], ['background.png', await pngBytes(B.img, cfg.w, cfg.h)], ['background_clean.png', bgClean]];
     for (var c = 0; c < common.length; c++) { if (sink.addCommon) sink.addCommon(common[c][0], common[c][1]); else await sink.add(common[c][0], common[c][1]); }
     var metaLines = [], t0 = performance.now(), fovW = Pb.sensor.fovW, fovH = fovW * 0.75, inChunk = 0;
     for (var i = 0; i < cfg.N; i++) {
-      if (batch.cancel) { msg.textContent = '已取消（完成 ' + i + ' 个）'; break; }
+      if (batch.cancel) { msg.textContent = tr('已取消（完成 ' + i + ' 个）', 'Cancelled (' + i + ' done)'); break; }
       var rng = GS.mulberry32(cfg.seed * 1000003 + i * 7919);
       var shape = cfg.shapes[Math.floor(rng() * cfg.shapes.length) % cfg.shapes.length];
       var ballR = cfg.r0 + (cfg.r1 - cfg.r0) * rng(), depth = cfg.d0 + (cfg.d1 - cfg.d0) * rng();
@@ -2235,20 +2335,63 @@ var GSP = (function () {
       if (sink instanceof ZipSink && inChunk >= cfg.chunk) { await sink.add('meta_part' + String(sink.part).padStart(3, '0') + '.jsonl', metaLines.join('\n') + '\n'); await sink.endChunk(); metaLines = []; inChunk = 0; }
       prog.value = (i + 1) / cfg.N;
       var el_ = (performance.now() - t0) / 1000, eta = el_ / (i + 1) * (cfg.N - i - 1);
-      msg.textContent = '第 ' + (i + 1) + ' / ' + cfg.N + ' 个 · 每个 ' + (el_ / (i + 1)).toFixed(2) + ' s · 剩余约 ' + Math.ceil(eta) + ' s';
+      msg.textContent = tr('第 ' + (i + 1) + ' / ' + cfg.N + ' 个 · 每个 ' + (el_ / (i + 1)).toFixed(2) + ' s · 剩余约 ' + Math.ceil(eta) + ' s',
+        'Sample ' + (i + 1) + ' / ' + cfg.N + ' · ' + (el_ / (i + 1)).toFixed(2) + ' s each · about ' + Math.ceil(eta) + ' s left');
       await new Promise(function (r) { setTimeout(r, 0); });
     }
     if (sink instanceof ZipSink) { if (metaLines.length) await sink.add('meta_part' + String(sink.part).padStart(3, '0') + '.jsonl', metaLines.join('\n') + '\n'); await sink.finish(); }
     else { await sink.add('meta.jsonl', metaLines.join('\n') + '\n'); }
-    if (!batch.cancel) msg.textContent = '完成：' + cfg.N + ' 个样本，用时 ' + ((performance.now() - t0) / 1000).toFixed(0) + ' s' + (sink instanceof FolderSink ? '（文件夹 ' + base + '）' : '');
+    var secs = ((performance.now() - t0) / 1000).toFixed(0);
+    if (!batch.cancel) msg.textContent = tr('完成：' + cfg.N + ' 个样本，用时 ' + secs + ' s' + (sink instanceof FolderSink ? '（文件夹 ' + base + '）' : ''),
+      'Done: ' + cfg.N + ' samples in ' + secs + ' s' + (sink instanceof FolderSink ? ' (folder ' + base + ')' : ''));
   }
 
+  /* ---------- language ---------- */
+  function applyStatic() {
+    document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-CN';
+    document.title = tr('GelSight 物理仿真', 'GelSight Physics Simulator');
+    Array.prototype.forEach.call(document.querySelectorAll('[data-en]'), function (e) { e.innerHTML = e.getAttribute(LANG === 'en' ? 'data-en' : 'data-zh'); });
+    $('#view').setAttribute('aria-label', tr('传感器表面：按下压入，拖动移动，滚轮旋转', 'Sensor surface: press to indent, drag to move, scroll to rotate'));
+    $('#letter').setAttribute('aria-label', tr('字母压头文字', 'Letters on the stamp'));
+    $('#split').setAttribute('aria-label', tr('分屏位置', 'Split position'));
+    document.querySelector('.viewer').setAttribute('aria-label', tr('仿真视图', 'Simulation view'));
+    Array.prototype.forEach.call(document.querySelectorAll('#lang button'), function (b) { b.setAttribute('aria-pressed', String(b.dataset.lang === LANG)); });
+    if (A) $('#aInfo').textContent = aInfoText();
+    RO.forEach(function (r) { var d = document.getElementById('rol-' + r[0]); if (d) d.textContent = tr(r[1], r[2]); });
+  }
+  function saveForm() {
+    var v = {};
+    Array.prototype.forEach.call(document.querySelectorAll('.exp input, .exp select'), function (e) {
+      var key = e.id || ('shape:' + e.value);
+      v[key] = e.type === 'checkbox' ? e.checked : e.value;
+    });
+    return v;
+  }
+  function restoreForm(v) {
+    Array.prototype.forEach.call(document.querySelectorAll('.exp input, .exp select'), function (e) {
+      var key = e.id || ('shape:' + e.value);
+      if (!(key in v)) return;
+      if (e.type === 'checkbox') e.checked = v[key]; else e.value = v[key];
+    });
+  }
+  function setLang(l) {
+    if (l === LANG || batch.running) return;
+    LANG = l;
+    try { localStorage.setItem('gs-lang', l); } catch (e) { /* ignore */ }
+    var form = saveForm();
+    applyStatic(); rebuildPanel(); restoreForm(form);
+    drawDirty = true; draw(); lastRO = 0; readouts();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('#lang button'), function (b) { b.addEventListener('click', function () { setLang(b.dataset.lang); }); });
+
   /* ---------- start ---------- */
+  applyStatic();
   buildChips(); buildPanel(); buildIndenterKV(); lastCtl = P.f2.on + P.f2.control + P.indenter.shape;
   refreshers.forEach(function (f) { f(); });
   st.holding = true;
   window.__gs = { P: function () { return P; }, sim: sim, bg: bgSim, st: st, request: request, onParam: onParam, setView: function (v) { var b = document.querySelector('.tab[data-view="' + v + '"]'); if (b) b.click(); },
-    exportFrame: exportFrame, snapA: function () { $('#snapA').click(); }, setAB: setAB, refresh: function () { refreshers.forEach(function (f) { f(); }); } };
+    exportFrame: exportFrame, snapA: function () { $('#snapA').click(); }, setAB: setAB, refresh: function () { refreshers.forEach(function (f) { f(); }); },
+    setLang: setLang, lang: function () { return LANG; } };
   request();
 })();
 
