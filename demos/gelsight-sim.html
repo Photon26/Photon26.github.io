@@ -1,0 +1,2257 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GelSight 物理仿真</title>
+<style>
+  :root {
+    --ink: #1f2a37; --text: #3d4651; --muted: #66717d; --rule: #e3e7ec; --soft: #f5f7f9; --accent: #2a5785;
+    --warn: #b4530f; --warn-bg: #fdf3e7; --ok: #2f7d4f; --lit: #5b4a99;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { background: #fff; color: var(--text); font: 14px/1.5 var(--font); -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: #fff; }
+  button, input, select { font: inherit; color: inherit; }
+  h1, h2, h3 { color: var(--ink); margin: 0; }
+  .top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 12px 18px; border-bottom: 1px solid var(--rule); }
+  .top h1 { font-size: 17px; font-weight: 700; margin-right: auto; }
+  .top h1 small { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { padding: 3px 10px; border: 1px solid var(--rule); border-radius: 999px; background: #fff; cursor: pointer; font-size: 12.5px; color: var(--muted); }
+  .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chip.preset { border-style: dashed; }
+  .chip:disabled { opacity: 0.45; cursor: not-allowed; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 16px 18px 40px; max-width: 1500px; margin: 0 auto; }
+  @media (min-width: 1100px) { .layout { grid-template-columns: minmax(520px, 680px) minmax(0, 1fr); align-items: start; } .viewer { position: sticky; top: 12px; } }
+
+  /* viewer */
+  .tabs { display: flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: var(--soft); margin-bottom: 8px; }
+  .tab { flex: 1 1 0; padding: 6px 4px; border: 0; border-left: 1px solid var(--rule); background: transparent; cursor: pointer; font-size: 13px; color: var(--muted); }
+  .tab:first-child { border-left: 0; }
+  .tab[aria-selected="true"] { background: #fff; color: var(--accent); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); }
+  .canvas-wrap { position: relative; aspect-ratio: 4 / 3; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: #222; }
+  #view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+  .hud { position: absolute; left: 8px; top: 8px; padding: 2px 8px; border-radius: 4px; background: rgba(20,24,29,0.6); color: #fff; font-size: 11.5px; pointer-events: none; font-family: var(--mono); }
+  .busy { position: absolute; right: 8px; top: 8px; padding: 2px 8px; border-radius: 4px; background: rgba(20,24,29,0.6); color: #ffd28a; font-size: 11.5px; pointer-events: none; display: none; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 8px; font-size: 13px; }
+  .row .grow { flex: 1 1 auto; }
+  .btn { padding: 4px 10px; border: 1px solid #c9d1d9; border-radius: 5px; background: #fff; cursor: pointer; font-size: 13px; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: #224a72; color: #fff; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 5px; overflow: hidden; }
+  .seg button { padding: 3px 9px; border: 0; border-left: 1px solid var(--rule); background: #fff; cursor: pointer; font-size: 12.5px; color: var(--muted); }
+  .seg button:first-child { border-left: 0; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .shapes { display: flex; flex-wrap: wrap; gap: 5px; }
+  .shape { padding: 4px 10px; border: 1px solid var(--rule); border-radius: 5px; background: #fff; cursor: pointer; font-size: 13px; }
+  .shape[aria-checked="true"] { border-color: var(--accent); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: #f1f5f9; }
+  .kv { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; margin-top: 10px; }
+  .kv label { font-size: 13px; color: var(--text); white-space: nowrap; }
+  .kv input[type=range] { width: 100%; accent-color: var(--accent); }
+  .kv output { font-family: var(--mono); font-size: 12.5px; min-width: 6.5em; text-align: right; color: var(--ink); }
+  .readouts { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); margin-top: 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--soft); }
+  .readouts div { padding: 5px 9px; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+  .readouts dt { font-size: 11px; color: var(--muted); }
+  .readouts dd { margin: 0; font-family: var(--mono); font-size: 13px; color: var(--ink); white-space: nowrap; }
+  .legend { margin-top: 6px; font-size: 12px; color: var(--muted); min-height: 1.5em; }
+
+  /* panel */
+  .panel { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .factor { border: 1px solid var(--rule); border-radius: 8px; background: #fff; }
+  .factor > header { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--rule); background: var(--soft); border-radius: 8px 8px 0 0; }
+  .factor > header h2 { font-size: 14.5px; flex: 1 1 auto; }
+  .factor > header h2 small { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 6px; }
+  .factor.off > header { background: #fafafa; }
+  .factor.off .body { opacity: 0.55; }
+  .factor .body { padding: 6px 12px 12px; }
+  .switch { position: relative; width: 34px; height: 19px; flex: none; }
+  .switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; z-index: 1; }
+  .switch span { position: absolute; inset: 0; border-radius: 999px; background: #c8ced5; transition: background 0.15s; }
+  .switch span::after { content: ""; position: absolute; left: 2px; top: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; transition: transform 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.25); }
+  .switch input:checked + span { background: var(--accent); }
+  .switch input:checked + span::after { transform: translateX(15px); }
+  .switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+  details.note { margin: 8px 0 4px; border-left: 3px solid var(--rule); padding: 0 0 0 10px; }
+  details.note summary { cursor: pointer; font-size: 12.5px; color: var(--accent); }
+  details.note div { font-size: 12.5px; line-height: 1.65; color: var(--text); padding: 4px 0 2px; }
+  details.note p { margin: 0 0 6px; }
+  details.note ul { margin: 0 0 6px; padding-left: 1.2em; }
+  .prow { display: grid; grid-template-columns: minmax(150px, 1.1fr) minmax(80px, 1fr) 74px 40px; align-items: center; gap: 4px 8px; padding: 3px 0; border-bottom: 1px dashed #eef1f4; }
+  .prow:last-child { border-bottom: 0; }
+  .prow.bool { grid-template-columns: auto minmax(0, 1fr); }
+  .prow .lbl { font-size: 13px; display: flex; align-items: center; gap: 5px; min-width: 0; }
+  .prow input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
+  .prow input[type=number] { width: 100%; padding: 1px 4px; border: 1px solid #d3d9df; border-radius: 4px; font-family: var(--mono); font-size: 12.5px; text-align: right; }
+  .prow .unit { font-size: 12px; color: var(--muted); }
+  .prow select { padding: 2px 4px; border: 1px solid #d3d9df; border-radius: 4px; font-size: 12.5px; grid-column: 2 / -1; }
+  .prow input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+  .sub { padding-left: 14px; }
+  .flag { flex: none; font-size: 10.5px; line-height: 1; padding: 2px 4px; border-radius: 3px; cursor: help; }
+  .flag.guess { background: var(--warn-bg); color: var(--warn); }
+  .flag.repo { background: #e8f4ec; color: var(--ok); }
+  .flag.lit { background: #efecf8; color: var(--lit); }
+  .flags-legend { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+  table.leds { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+  table.leds th { font-weight: 600; color: var(--muted); text-align: left; padding: 3px 3px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  table.leds td { padding: 2px 3px; border-bottom: 1px dashed #eef1f4; }
+  table.leds input[type=number] { width: 4.4em; padding: 1px 3px; border: 1px solid #d3d9df; border-radius: 3px; font-family: var(--mono); font-size: 12px; text-align: right; }
+  table.leds select { font-size: 12px; padding: 1px 2px; }
+  .led-scroll { overflow-x: auto; }
+  table.mix { border-collapse: collapse; font-family: var(--mono); font-size: 12px; margin-top: 6px; }
+  table.mix th, table.mix td { padding: 2px 8px; border: 1px solid var(--rule); text-align: right; }
+  table.mix th { font-family: var(--font); font-weight: 600; color: var(--muted); background: var(--soft); }
+  .placeholder { padding: 10px 12px; font-size: 13px; color: var(--muted); }
+  .exp .body { display: grid; gap: 8px; }
+  .exp fieldset { border: 1px solid var(--rule); border-radius: 6px; padding: 6px 10px 10px; margin: 0; }
+  .exp legend { font-size: 13px; font-weight: 600; color: var(--ink); padding: 0 4px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px 14px; align-items: center; font-size: 13px; }
+  .grid2 label { display: flex; align-items: center; gap: 6px; }
+  .grid2 input[type=number], .grid2 input[type=text] { width: 5.5em; padding: 1px 4px; border: 1px solid #d3d9df; border-radius: 4px; font-family: var(--mono); font-size: 12.5px; }
+  .grid2 input[type=text].wide { width: 12em; }
+  progress { width: 100%; height: 10px; accent-color: var(--accent); }
+  .msg { font-size: 12.5px; color: var(--muted); }
+  .msg.err { color: #b3261e; }
+  kbd { font-family: var(--mono); font-size: 11.5px; padding: 0 4px; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 3px; background: #fff; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>GelSight 类视触觉传感器 · 物理仿真<small>纯颜色（无 marker）· 透明硅胶 + 反光涂层 + 侧面多色 LED</small></h1>
+  <div class="chips" id="chips"></div>
+</header>
+<main class="layout">
+  <section class="viewer" aria-label="仿真视图">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-view="cam">相机图像</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="diff">差分</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="height">高度</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="normal">法向</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="pressure">压力</button>
+    </div>
+    <div class="canvas-wrap" id="wrap">
+      <canvas id="view" tabindex="0" aria-label="传感器表面：按下压入，拖动移动，滚轮旋转"></canvas>
+      <div class="hud" id="hud"></div>
+      <div class="busy" id="busy">求解中…</div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div class="row">
+      <span>对比 A/B：</span>
+      <button class="btn" id="snapA">当前存为 A</button>
+      <span class="seg" id="abmode"><button data-ab="off" aria-pressed="true">关</button><button data-ab="split" aria-pressed="false">A｜当前</button><button data-ab="diff" aria-pressed="false">|当前−A|×4</button></span>
+      <input type="range" id="split" min="0" max="1" step="0.01" value="0.5" class="grow" aria-label="分屏位置" disabled>
+      <span class="msg" id="aInfo">未存 A</span>
+    </div>
+    <div class="row">
+      <span>压头：</span>
+      <span class="shapes" id="shapes" role="radiogroup">
+        <button class="shape" role="radio" aria-checked="true" data-shape="sphere">球</button>
+        <button class="shape" role="radio" aria-checked="false" data-shape="cylinder">圆柱(横放)</button>
+        <button class="shape" role="radio" aria-checked="false" data-shape="cube">方块</button>
+        <button class="shape" role="radio" aria-checked="false" data-shape="screw">螺丝头</button>
+        <button class="shape" role="radio" aria-checked="false" data-shape="letter">字母</button>
+      </span>
+      <input type="text" id="letter" value="R" maxlength="3" size="4" aria-label="字母压头文字" style="width:4em;padding:2px 6px;border:1px solid #d3d9df;border-radius:4px" hidden>
+    </div>
+    <div class="kv" id="indKV"></div>
+    <div class="row">
+      <label><input type="checkbox" id="hold" checked> 松开后保持按压</label>
+      <button class="btn" id="lift">抬起 <kbd>Esc</kbd></button>
+      <span class="msg">按下＝压入，拖动＝移动，滚轮 / <kbd>Q</kbd><kbd>E</kbd>＝旋转</span>
+    </div>
+    <dl class="readouts" id="ro"></dl>
+  </section>
+
+  <aside class="panel" id="panel">
+    <div class="flags-legend">参数来源：<span class="flag repo">仓库</span> 取自你的 Gelsight_controller <span class="flag lit">文献</span> 典型文献 / 手册值 <span class="flag guess">⚠ 待确认</span> 合理默认值，请换成你的实测</div>
+  </aside>
+</main>
+<script>
+/* =====================================================================
+   GelSight-type tactile sensor simulator - physics core (no DOM).
+   Units: mm, MPa (= N/mm^2), N, s.  Frame: x right, y down (image rows),
+   z points from the coating toward the camera.  Surface height u(x,y) is
+   the coating displacement toward the camera (indentation > 0).
+   ===================================================================== */
+var GS = (function () {
+  'use strict';
+
+  /* ---------------- small utilities ---------------- */
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  function sstep(e0, e1, x) { var t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); }
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function gaussianRng(seed) {
+    var r = mulberry32(seed >>> 0), spare = 0, has = false;
+    return function () {
+      if (has) { has = false; return spare; }
+      var u = r() || 1e-12, v = r(), m = Math.sqrt(-2 * Math.log(u));
+      spare = m * Math.sin(6.283185307179586 * v); has = true;
+      return m * Math.cos(6.283185307179586 * v);
+    };
+  }
+  var BIG = 1e6;
+  var NORM = (function () { var g = gaussianRng(12345), t = new Float32Array(1 << 16); for (var i = 0; i < t.length; i++) t[i] = g(); return t; })();
+
+  /* ---------------- radix-2 complex FFT (2-D, square) ---------------- */
+  function FFT2(n) {
+    var levels = Math.round(Math.log(n) / Math.LN2);
+    if ((1 << levels) !== n) throw new Error('FFT size must be a power of two');
+    var rev = new Uint32Array(n), cs = new Float64Array(n >> 1), sn = new Float64Array(n >> 1), i;
+    for (i = 0; i < n; i++) { var r = 0; for (var b = 0; b < levels; b++) r |= ((i >> b) & 1) << (levels - 1 - b); rev[i] = r; }
+    for (i = 0; i < (n >> 1); i++) { cs[i] = Math.cos(2 * Math.PI * i / n); sn[i] = Math.sin(2 * Math.PI * i / n); }
+    function fft1(re, im, off, stride, inv) {
+      var i, j, a, b, t;
+      for (i = 0; i < n; i++) {
+        j = rev[i];
+        if (j > i) { a = off + i * stride; b = off + j * stride; t = re[a]; re[a] = re[b]; re[b] = t; t = im[a]; im[a] = im[b]; im[b] = t; }
+      }
+      var sgn = inv ? 1 : -1;
+      for (var size = 2; size <= n; size <<= 1) {
+        var half = size >> 1, step = n / size;
+        for (i = 0; i < n; i += size) {
+          for (var jj = 0, k = 0; jj < half; jj++, k += step) {
+            a = off + (i + jj) * stride; b = a + half * stride;
+            var wr = cs[k], wi = sgn * sn[k];
+            var xr = re[b] * wr - im[b] * wi, xi = re[b] * wi + im[b] * wr;
+            re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi;
+          }
+        }
+      }
+    }
+    this.n = n;
+    this.run = function (re, im, inv) {          // unscaled in both directions
+      var r;
+      for (r = 0; r < n; r++) fft1(re, im, r * n, 1, inv);
+      for (r = 0; r < n; r++) fft1(re, im, r, n, inv);
+    };
+  }
+
+  /* ---------------- separable blurs (edge-extended) ---------------- */
+  function gaussKernel(sigma) {
+    var r = Math.max(1, Math.ceil(3 * sigma)), k = new Float32Array(2 * r + 1), s = 0;
+    for (var i = -r; i <= r; i++) { k[i + r] = Math.exp(-i * i / (2 * sigma * sigma)); s += k[i + r]; }
+    for (i = 0; i < k.length; i++) k[i] /= s;
+    return k;
+  }
+  function convRows(src, dst, w, h, k) {
+    var r = (k.length - 1) >> 1;
+    for (var y = 0; y < h; y++) {
+      var o = y * w;
+      for (var x = 0; x < w; x++) {
+        var acc = 0;
+        for (var q = -r; q <= r; q++) { var xx = x + q; xx = xx < 0 ? 0 : (xx >= w ? w - 1 : xx); acc += k[q + r] * src[o + xx]; }
+        dst[o + x] = acc;
+      }
+    }
+  }
+  function convCols(src, dst, w, h, k) {
+    var r = (k.length - 1) >> 1;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var acc = 0;
+        for (var q = -r; q <= r; q++) { var yy = y + q; yy = yy < 0 ? 0 : (yy >= h ? h - 1 : yy); acc += k[q + r] * src[yy * w + x]; }
+        dst[y * w + x] = acc;
+      }
+    }
+  }
+  function boxPass(src, dst, w, h, r, horiz) {
+    var inv = 1 / (2 * r + 1), x, y, acc, i;
+    if (horiz) {
+      for (y = 0; y < h; y++) {
+        var o = y * w; acc = 0;
+        for (i = -r - 1; i < r; i++) acc += src[o + (i < 0 ? 0 : (i >= w ? w - 1 : i))];
+        for (x = 0; x < w; x++) {
+          var a = x + r, b = x - r - 1;
+          acc += src[o + (a >= w ? w - 1 : a)] - src[o + (b < 0 ? 0 : b)];
+          dst[o + x] = acc * inv;
+        }
+      }
+    } else {
+      for (x = 0; x < w; x++) {
+        acc = 0;
+        for (i = -r - 1; i < r; i++) acc += src[(i < 0 ? 0 : (i >= h ? h - 1 : i)) * w + x];
+        for (y = 0; y < h; y++) {
+          var a2 = y + r, b2 = y - r - 1;
+          acc += src[(a2 >= h ? h - 1 : a2) * w + x] - src[(b2 < 0 ? 0 : b2) * w + x];
+          dst[y * w + x] = acc * inv;
+        }
+      }
+    }
+  }
+  /* Gaussian blur of one plane; exact kernel for small sigma, 3 box passes otherwise. */
+  function blur(src, dst, w, h, sigma, tmp) {
+    if (!(sigma > 0.05)) { if (dst !== src) dst.set(src); return; }
+    if (sigma < 3) { var k = gaussKernel(sigma); convRows(src, tmp, w, h, k); convCols(tmp, dst, w, h, k); return; }
+    var r = Math.max(1, Math.round((Math.sqrt(4 * sigma * sigma + 1) - 1) / 2));
+    boxPass(src, tmp, w, h, r, true); boxPass(tmp, dst, w, h, r, false);
+    boxPass(dst, tmp, w, h, r, true); boxPass(tmp, dst, w, h, r, false);
+    boxPass(dst, tmp, w, h, r, true); boxPass(tmp, dst, w, h, r, false);
+  }
+
+  /* Very wide Gaussian: average-pool by f, blur, bilinear up-sample (kernels >> pixel). */
+  function blurWide(src, dst, w, h, sigma) {
+    if (sigma < 12) { blur(src, dst, w, h, sigma, new Float32Array(w * h)); return; }
+    var f = Math.max(2, Math.floor(sigma / 4)), sw = Math.ceil(w / f), sh = Math.ceil(h / f), a = new Float32Array(sw * sh), t = new Float32Array(sw * sh), x, y;
+    for (y = 0; y < sh; y++) for (x = 0; x < sw; x++) {
+      var acc = 0, cnt = 0;
+      for (var yy = y * f; yy < Math.min(h, y * f + f); yy++) for (var xx = x * f; xx < Math.min(w, x * f + f); xx++) { acc += src[yy * w + xx]; cnt++; }
+      a[y * sw + x] = acc / cnt;
+    }
+    blur(a, a, sw, sh, sigma / f, t);
+    for (y = 0; y < h; y++) {
+      var fy = clamp((y + 0.5) / f - 0.5, 0, sh - 1.001), y0 = fy | 0, ty = fy - y0;
+      for (x = 0; x < w; x++) {
+        var fx = clamp((x + 0.5) / f - 0.5, 0, sw - 1.001), x0 = fx | 0, tx = fx - x0, k = y0 * sw + x0;
+        dst[y * w + x] = (a[k] * (1 - tx) + a[k + 1] * tx) * (1 - ty) + (a[k + sw] * (1 - tx) + a[k + sw + 1] * tx) * ty;
+      }
+    }
+  }
+
+  /* ---------------- cubic B-spline interpolation (Unser prefilter) ---------------- */
+  function bsplinePrefilter1D(c, off, stride, n) {
+    var z = Math.sqrt(3) - 2, lambda = (1 - z) * (1 - 1 / z), k;
+    for (k = 0; k < n; k++) c[off + k * stride] *= lambda;
+    var horizon = Math.min(n, 28), zn = z, sum = c[off];
+    for (k = 1; k < horizon; k++) { sum += zn * c[off + k * stride]; zn *= z; }
+    c[off] = sum;
+    for (k = 1; k < n; k++) c[off + k * stride] += z * c[off + (k - 1) * stride];
+    c[off + (n - 1) * stride] = (z / (z * z - 1)) * (c[off + (n - 1) * stride] + z * c[off + (n - 2) * stride]);
+    for (k = n - 2; k >= 0; k--) c[off + k * stride] = z * (c[off + (k + 1) * stride] - c[off + k * stride]);
+  }
+  function bsplineWeights(t, w) {
+    var t2 = t * t, t3 = t2 * t, s = 1 - t;
+    w[0] = s * s * s / 6; w[1] = (3 * t3 - 6 * t2 + 4) / 6; w[2] = (-3 * t3 + 3 * t2 + 3 * t + 1) / 6; w[3] = t3 / 6;
+  }
+
+  /* ---------------- spectra & camera response ---------------- */
+  var LAM0 = 380, LAM1 = 730, DLAM = 2, NLAM = Math.round((LAM1 - LAM0) / DLAM) + 1;
+  function gaussSpec(peak, fwhm) {
+    var s = fwhm / 2.3548, a = new Float64Array(NLAM);
+    for (var k = 0; k < NLAM; k++) { var l = LAM0 + k * DLAM; a[k] = Math.exp(-0.5 * (l - peak) * (l - peak) / (s * s)); }
+    return a;
+  }
+  function ledSpectrum(led) {
+    if (led.type === 'W') {   // phosphor-converted white: blue pump + broad phosphor band
+      var a = gaussSpec(450, 20), b = gaussSpec(565, 115);
+      for (var k = 0; k < NLAM; k++) a[k] = 0.45 * a[k] + 0.85 * b[k];
+      return a;
+    }
+    return gaussSpec(led.peak, led.fwhm);
+  }
+  /* Typical Bayer CMOS quantum efficiency (Gaussian approximation + IR-cut filter). */
+  var QE = (function () {
+    var r = gaussSpec(600, 80), g = gaussSpec(535, 100), b = gaussSpec(460, 90);
+    for (var k = 0; k < NLAM; k++) {
+      var l = LAM0 + k * DLAM, ir = 1 / (1 + Math.exp((l - 655) / 7));
+      r[k] *= ir; g[k] *= ir; b[k] *= ir;
+    }
+    return [r, g, b];
+  })();
+  var NOMINAL = { R: [1, 0, 0], G: [0, 1, 0], B: [0, 0, 1], W: [1, 1, 1] };
+  /* Camera RGB response to one LED, normalised so the strongest channel = 1. */
+  function ledResponse(led, spectral) {
+    if (!spectral) return NOMINAL[led.type].slice();
+    var s = ledSpectrum(led), out = [0, 0, 0];
+    for (var c = 0; c < 3; c++) { var acc = 0; for (var k = 0; k < NLAM; k++) acc += s[k] * QE[c][k]; out[c] = acc; }
+    var m = Math.max(out[0], out[1], out[2]);
+    return [out[0] / m, out[1] / m, out[2] / m];
+  }
+
+  /* ---------------- indenter height maps ---------------- */
+  function phillipsArm(along, perp) {
+    var t = along / 2.25;
+    if (t >= 1) return 0;
+    var hw = 0.46 - 0.14 * t;
+    return (0.25 + 1.35 * (1 - t)) * sstep(hw + 0.09, hw - 0.09, perp) * sstep(1, 0.84, t);
+  }
+  var SHAPES = {
+    cylinder: { R: 2.5, HL: 6.5 }, cube: { half: 3 }, screw: { R: 3.5 }, letter: { half: 5, relief: 1.1 }
+  };
+  function Indenter() { this.key = ''; this.h = null; this.SN = 0; this.SL = 8; this.SS = 0.02; this.reach = 4; this.shape = 'sphere'; }
+  Indenter.letterMask = null;     // injected by the UI: function(text, n) -> Float32Array(n*n) in [0,1]
+  Indenter.prototype.build = function (shape, ballR, text) {
+    var key = shape + '|' + ballR + '|' + (shape === 'letter' ? text : '');
+    if (key === this.key) return false;
+    this.key = key; this.shape = shape;
+    var SL = shape === 'sphere' ? Math.min(12, Math.max(3, ballR + 0.3)) : 8, SS = 0.02;
+    var SN = Math.round(2 * SL / SS) + 1, h = new Float32Array(SN * SN);
+    var mask = null, MN = 0, mo = 0;
+    if (shape === 'letter') {
+      MN = Math.round(10 / SS) + 1; mo = Math.round((SL - 5) / SS);
+      mask = Indenter.letterMask ? Indenter.letterMask(text, MN) : new Float32Array(MN * MN);
+    }
+    var R2 = ballR * ballR, C = SHAPES;
+    for (var j = 0; j < SN; j++) {
+      var y = -SL + j * SS;
+      for (var i = 0; i < SN; i++) {
+        var x = -SL + i * SS, v = BIG, r2, e, dx, dy, d;
+        if (shape === 'sphere') {
+          r2 = x * x + y * y;
+          if (r2 < R2) v = ballR - Math.sqrt(R2 - r2);
+        } else if (shape === 'cylinder') {                 // rod lying along x (line contact)
+          var ax = Math.abs(x), ay = Math.abs(y), RR = C.cylinder.R, HL = C.cylinder.HL;
+          if (ay < RR && ax < HL) {
+            v = RR - Math.sqrt(RR * RR - y * y);
+            e = ax - (HL - 0.6);
+            if (e > 0) v += 0.6 - Math.sqrt(Math.max(0, 0.36 - e * e));
+          }
+        } else if (shape === 'cube') {                     // 6 mm block, 0.5 mm edge fillet
+          dx = Math.max(Math.abs(x) - (C.cube.half - 0.5), 0); dy = Math.max(Math.abs(y) - (C.cube.half - 0.5), 0);
+          d = Math.sqrt(dx * dx + dy * dy);
+          if (d < 0.5) v = 0.5 - Math.sqrt(0.25 - d * d);
+        } else if (shape === 'screw') {                    // Phillips pan head, 7 mm
+          var r = Math.sqrt(x * x + y * y), SR = C.screw.R;
+          if (r < SR) {
+            v = 7 - Math.sqrt(49 - r * r);
+            e = r - (SR - 0.7);
+            if (e > 0) v += 0.7 - Math.sqrt(Math.max(0, 0.49 - e * e));
+            var a1 = Math.abs(x), a2 = Math.abs(y);
+            v += Math.max(phillipsArm(a1, a2), phillipsArm(a2, a1), Math.max(0, 1.5 - 1.6 * r));
+          }
+        } else if (shape === 'letter') {                   // 10 mm stamp, raised characters
+          var LH = C.letter.half;
+          dx = Math.max(Math.abs(x) - (LH - 0.6), 0); dy = Math.max(Math.abs(y) - (LH - 0.6), 0);
+          d = Math.sqrt(dx * dx + dy * dy);
+          if (d < 0.6) {
+            var mi = i - mo, mj = j - mo;
+            var mv = (mi >= 0 && mi < MN && mj >= 0 && mj < MN) ? mask[mj * MN + mi] : 0;
+            v = C.letter.relief * (1 - mv) + 0.6 - Math.sqrt(0.36 - d * d);
+          }
+        }
+        h[j * SN + i] = v;
+      }
+    }
+    this.h = h; this.SN = SN; this.SL = SL; this.SS = SS;
+    this.reach = { sphere: ballR, cylinder: Math.hypot(C.cylinder.HL, C.cylinder.R), cube: C.cube.half * Math.SQRT2,
+      screw: C.screw.R, letter: C.letter.half * Math.SQRT2 }[shape];
+    return true;
+  };
+  /* Penetration of the indenter below the undeformed surface at gel point (X,Y): delta - h_local. */
+  Indenter.prototype.pen = function (X, Y, pose) {
+    var wx = X - pose.x, wy = Y - pose.y;
+    if (wx * wx + wy * wy > (this.reach + 0.05) * (this.reach + 0.05)) return -BIG;
+    var c = pose.c, s = pose.s, SL = this.SL, SS = this.SS, SN = this.SN;
+    var u = (c * wx + s * wy + SL) / SS, v = (-s * wx + c * wy + SL) / SS;
+    if (u < 0 || v < 0 || u >= SN - 1 || v >= SN - 1) return -BIG;
+    var iu = u | 0, iv = v | 0, fu = u - iu, fv = v - iv, k = iv * SN + iu, h = this.h;
+    var a = h[k], b = h[k + 1], cc = h[k + SN], dd = h[k + SN + 1];
+    if (a >= BIG || b >= BIG || cc >= BIG || dd >= BIG) {
+      var m = Math.min(a, b, cc, dd);
+      if (m >= BIG) return -BIG;
+      a = a >= BIG ? m + 1 : a; b = b >= BIG ? m + 1 : b; cc = cc >= BIG ? m + 1 : cc; dd = dd >= BIG ? m + 1 : dd;
+    }
+    var hv = (a * (1 - fu) + b * fu) * (1 - fv) + (cc * (1 - fu) + dd * fu) * fv;
+    return pose.d - hv;
+  };
+
+  /* =====================================================================
+     Factor 2 - gel mechanics.
+     Linear elastic layer (thickness t, E, nu) bonded to a rigid base,
+     frictionless top surface. Surface compliance in Fourier space:
+       C(k) = 2(1-nu^2)/(E k) * (kap sinh2h - 2h) / (kap cosh2h + 2h^2 + (1+kap^2)/2),
+       h = k t, kap = 3 - 4 nu.
+     Optional coating = thin plate (bending stiffness D) on top: 1/C -> 1/C + D k^4.
+     Frictionless contact under prescribed indentation is solved with the
+     Polonsky-Keer conjugate-gradient method on a periodic FFT grid.
+     ===================================================================== */
+  function ContactSolver(n, h) {
+    var N = n * n;
+    this.n = n; this.h = h; this.fft = new FFT2(n);
+    this.K = new Float64Array(N); this.G0 = 1; this.kkey = '';
+    this.p = new Float64Array(N); this.u = new Float64Array(N); this.t = new Float64Array(N);
+    this.r = new Float64Array(N); this.s = new Float64Array(N); this.v = new Float64Array(N);
+    this.re = new Float64Array(N); this.im = new Float64Array(N);
+    this.iters = 0; this.err = 0;
+  }
+  ContactSolver.prototype.setKernel = function (E, nu, t, D) {
+    var key = E + ',' + nu + ',' + t + ',' + D;
+    if (key === this.kkey) return false;
+    this.kkey = key;
+    var n = this.n, L = n * this.h, K = this.K, kap = 3 - 4 * nu, inv = 1 / (n * n), sum = 0;
+    for (var j = 0; j < n; j++) {
+      var fj = j <= n / 2 ? j : j - n;
+      for (var i = 0; i < n; i++) {
+        var fi = i <= n / 2 ? i : i - n, k = 2 * Math.PI * Math.sqrt(fi * fi + fj * fj) / L, c;
+        if (k === 0) c = t * (1 + nu) * (1 - 2 * nu) / (E * (1 - nu));
+        else {
+          var eta = k * t, kf;
+          if (eta > 15) kf = 1;
+          else { var s2 = Math.sinh(2 * eta), c2 = Math.cosh(2 * eta); kf = (kap * s2 - 2 * eta) / (kap * c2 + 2 * eta * eta + (1 + kap * kap) / 2); }
+          c = 2 * (1 - nu * nu) / (E * k) * kf;
+        }
+        if (D > 0 && c > 0) c = 1 / (1 / c + D * k * k * k * k);
+        K[j * n + i] = c * inv; sum += c;
+      }
+    }
+    this.G0 = sum * inv;       // displacement of a cell under unit pressure on that cell
+    return true;
+  };
+  ContactSolver.prototype.conv = function (src, dst) {
+    var re = this.re, im = this.im, K = this.K, N = re.length, i;
+    for (i = 0; i < N; i++) { re[i] = src[i]; im[i] = 0; }
+    this.fft.run(re, im, false);
+    for (i = 0; i < N; i++) { re[i] *= K[i]; im[i] *= K[i]; }
+    this.fft.run(re, im, true);
+    for (i = 0; i < N; i++) dst[i] = re[i];
+  };
+  /* Solve p >= 0, gap g = u - s >= 0, p g = 0, with u = C * p. s = target (penetration). */
+  ContactSolver.prototype.solve = function (maxIter, tol, cont) {
+    var N = this.n * this.n, p = this.p, u = this.u, t = this.t, r = this.r, s = this.s, i;
+    var Gold = 1, delta = 0, err = 1, it;
+    if (cont && this.cgValid) { Gold = this.Gold; delta = this.delta; }
+    else {
+      var any = false, anyPen = false;
+      for (i = 0; i < N; i++) { if (p[i] > 0) any = true; if (s[i] > 0) anyPen = true; }
+      if (!anyPen && !any) { u.fill(0); this.iters = 0; this.err = 0; this.cgValid = false; return 0; }
+      if (!any) { for (i = 0; i < N; i++) p[i] = s[i] > 0 ? 0.5 * s[i] / this.G0 : 0; }
+      this.conv(p, u);
+      t.fill(0);
+    }
+    for (it = 0; it < maxIter; it++) {
+      var G = 0, g;
+      for (i = 0; i < N; i++) if (p[i] > 0) { g = u[i] - s[i]; G += g * g; }
+      if (G === 0 && it > 0) { err = 0; break; }
+      var beta = delta ? G / Gold : 0;
+      for (i = 0; i < N; i++) t[i] = p[i] > 0 ? (u[i] - s[i]) + beta * t[i] : 0;
+      Gold = G || 1;
+      this.conv(t, r);
+      var num = 0, den = 0;
+      for (i = 0; i < N; i++) if (p[i] > 0) { num += (u[i] - s[i]) * t[i]; den += r[i] * t[i]; }
+      var tau = den > 0 ? num / den : 0;
+      var changed = false, sumP = 0, sumD = 0;
+      delta = 1;
+      for (i = 0; i < N; i++) {
+        var pi = p[i], np;
+        if (pi > 0) { np = pi - tau * t[i]; if (np < 0) { np = 0; changed = true; } }
+        else if (u[i] - s[i] < 0) { np = -tau * (u[i] - s[i]); if (!(np > 0)) np = 1e-9; delta = 0; changed = true; }
+        else np = 0;
+        sumD += Math.abs(np - pi); sumP += np; p[i] = np;
+      }
+      err = sumP > 0 ? sumD / sumP : 0;
+      if (changed) this.conv(p, u); else for (i = 0; i < N; i++) u[i] -= tau * r[i];
+      if (err < tol) { it++; break; }
+    }
+    this.iters = it; this.err = err; this.Gold = Gold; this.delta = delta; this.cgValid = true;
+    return err;
+  };
+  /* Shift the warm-start pressure by whole cells (when the indenter jumps). */
+  ContactSolver.prototype.reset = function () { this.p.fill(0); this.v.fill(0); this.u.fill(0); this.cgValid = false; };
+
+  /* Gel = solver + state (viscoelastic memory) + stats */
+  function Gel() {
+    this.solver = null; this.coef = null; this.total = null; this.stats = { F: 0, A: 0, umax: 0, iters: 0, err: 0, Fel: 0 };
+  }
+  Gel.prototype.ensure = function (h) {
+    var n = h < 0.2 ? 256 : 128;
+    if (!this.solver || this.solver.n !== n || Math.abs(this.solver.h - h) > 1e-9) {
+      this.solver = new ContactSolver(n, h);
+      this.coef = new Float64Array(n * n); this.total = new Float64Array(n * n);
+    }
+    return this.solver;
+  };
+  Gel.prototype.reset = function () { this.skey = ''; if (this.solver) { this.solver.reset(); this.total.fill(0); this.coef.fill(0); } };
+  /* One mechanics step. pose: indenter pose in the gel (material) frame. */
+  Gel.prototype.step = function (ind, pose, P, dt, maxIter, tol) {
+    var f2 = P.f2, tg = P.sensor.tGel, S = this.ensure(f2.grid), n = S.n, h = S.h, N = n * n, i, j;
+    var D = f2.plate ? f2.Ec * Math.pow(f2.tc, 3) / (12 * (1 - 0.25)) : 0;   // coating nu = 0.5
+    var kchanged = S.setKernel(f2.E, f2.nu, tg, D);
+    var skey = f2.visco ? '' : [pose.x, pose.y, pose.c, pose.s, pose.d, ind.key, h].join(',');
+    var cont = !kchanged && skey !== '' && skey === this.skey;
+    this.skey = skey;
+    var s = S.s, v = S.v, reach = ind.reach + h, x0 = pose.x, y0 = pose.y;
+    for (j = 0; j < n; j++) {
+      var Y = (j - n / 2 + 0.5) * h;
+      for (i = 0; i < n; i++) {
+        var X = (i - n / 2 + 0.5) * h, k = j * n + i;
+        var pen = (pose.d > 0 && Math.abs(X - x0) < reach && Math.abs(Y - y0) < reach) ? ind.pen(X, Y, pose) : -BIG;
+        s[k] = f2.visco ? pen - v[k] : pen;
+      }
+    }
+    S.solve(maxIter, tol, cont);
+    var u = S.u, p = S.p, tot = this.total;
+    // viscoelastic memory (standard linear solid, same spatial kernel):  v -> r*u_el with time constant tau
+    if (f2.visco) {
+      var a = Math.exp(-Math.max(0, dt) / Math.max(1e-3, f2.vtau)), rr = f2.vr;
+      for (i = 0; i < N; i++) { var tgt = rr * u[i]; v[i] = tgt + (v[i] - tgt) * a; }
+    } else if (v[0] !== 0 || v[N >> 1] !== 0) v.fill(0);
+    var F = 0, Fel = 0, A = 0, umax = 0;
+    for (i = 0; i < N; i++) {
+      var ut = u[i] + (f2.visco ? v[i] : 0);
+      tot[i] = ut;
+      if (ut > umax) umax = ut;
+      if (p[i] > 0) {
+        A++; Fel += p[i];
+        if (f2.hyper) {     // neo-Hookean stiffening of the compressed layer (force only)
+          var lam = clamp(1 - ut / tg, 0.15, 1);
+          F += p[i] * (Math.abs(1 - lam) < 1e-6 ? 1 : (lam - 1 / (lam * lam)) / (3 * (lam - 1)));
+        } else F += p[i];
+      }
+    }
+    var st = this.stats;
+    st.F = F * h * h; st.Fel = Fel * h * h; st.A = A * h * h; st.umax = umax; st.iters = S.iters; st.err = S.err;
+    // B-spline coefficients of the total displacement for smooth up-sampling
+    var c = this.coef; c.set(tot);
+    for (j = 0; j < n; j++) bsplinePrefilter1D(c, j * n, 1, n);
+    for (i = 0; i < n; i++) bsplinePrefilter1D(c, i, n, n);
+    return st;
+  };
+  /* Release: no contact, only the delayed (viscoelastic) part remains. */
+  Gel.prototype.relax = function (P, dt) {
+    if (!this.solver) return false;
+    var S = this.solver, N = S.n * S.n, v = S.v, i, any = false;
+    S.p.fill(0); S.u.fill(0);
+    var a = P.f2.visco ? Math.exp(-Math.max(0, dt) / Math.max(1e-3, P.f2.vtau)) : 0, umax = 0;
+    for (i = 0; i < N; i++) { v[i] *= a; if (Math.abs(v[i]) > 2e-4) any = true; if (v[i] > umax) umax = v[i]; }
+    if (!any) v.fill(0);
+    this.total.set(v);
+    var c = this.coef; c.set(v);
+    var n = S.n;
+    for (var j = 0; j < n; j++) bsplinePrefilter1D(c, j * n, 1, n);
+    for (i = 0; i < n; i++) bsplinePrefilter1D(c, i, n, n);
+    var st = this.stats; st.F = 0; st.Fel = 0; st.A = 0; st.umax = umax; st.iters = 0; st.err = 0;
+    return any;
+  };
+
+  /* =====================================================================
+     Simulation of one sensor (geometry -> radiance -> camera)
+     ===================================================================== */
+  function Sim(W, H) {
+    this.ind = new Indenter();
+    this.gel = new Gel();
+    this.setResolution(W || 320, H || 240);
+  }
+  Sim.prototype.setResolution = function (W, H) {
+    this.W = W; this.H = H; this.m = Math.round(W / 20);           // margin (gel grid only)
+    var Wg = W + 2 * this.m, Hg = H + 2 * this.m, Ng = Wg * Hg, Nc = W * H;
+    this.Wg = Wg; this.Hg = Hg;
+    this.U = new Float32Array(Ng); this.U0 = new Float32Array(Ng); this.Sf = new Float32Array(Ng);
+    this.NX = new Float32Array(Ng); this.NY = new Float32Array(Ng); this.NZ = new Float32Array(Ng);
+    this.VX = new Float32Array(Ng); this.VY = new Float32Array(Ng); this.VZ = new Float32Array(Ng);
+    this.MK = new Uint8Array(Ng); this.PR = new Float32Array(Ng);
+    this.Ld = new Float32Array(3 * Ng); this.Lt = new Float32Array(3 * Ng);
+    this.T1 = new Float32Array(Ng); this.T2 = new Float32Array(Ng); this.T3 = new Float32Array(Ng);
+    // camera grid
+    this.IL = new Float32Array(3 * Nc); this.HU = new Float32Array(Nc); this.HN = new Float32Array(3 * Nc);
+    this.HM = new Uint8Array(Nc); this.HP = new Float32Array(Nc);
+    this.QX = new Float32Array(Nc); this.QY = new Float32Array(Nc);      // gel-grid pixel coordinate seen by each camera pixel
+    this.DZ = new Float32Array(Nc);                                       // defocus depth per camera pixel
+    this.C1 = new Float32Array(Nc); this.C2 = new Float32Array(Nc); this.C3 = new Float32Array(Nc);
+    this.img = new Uint8ClampedArray(4 * Nc);
+    this.bg = null; this.bgKey = ''; this.viewKey = '';
+    this.bbox = null; this.umax = 0;
+  };
+  Sim.prototype.dp = function (P) { return P.sensor.fovW / this.W; };
+
+  /* ---------- geometry: fine surface on the gel grid ---------- */
+  Sim.prototype.geometry = function (pose, P, dt, maxIter, tol, matPose, shear) {
+    var Wg = this.Wg, Hg = this.Hg, m = this.m, dp = this.dp(P), fovW = P.sensor.fovW, fovH = fovW * this.H / this.W;
+    var U = this.U, Sf = this.Sf, MK = this.MK, PR = this.PR, ind = this.ind;
+    var mech = P.f2.on, gel = this.gel, st = null, i, j, k;
+    var mp = matPose || pose;
+    if (mech) {
+      if (mp.d > 0) st = gel.step(ind, mp, P, dt, maxIter, tol); else { gel.ensure(P.f2.grid); gel.relax(P, dt); st = gel.stats; }
+    }
+    var S = mech ? gel.solver : null, n = S ? S.n : 0, hc = S ? S.h : 1, coef = mech ? gel.coef : null, p = S ? S.p : null;
+    var wx = new Float32Array(4), wy = new Float32Array(4), reach = ind.reach + dp;
+    // region (mm) where the coarse displacement is non-negligible
+    var bx0 = 1e9, bx1 = -1e9, by0 = 1e9, by1 = -1e9;
+    if (mech) {
+      var tot = gel.total;
+      for (j = 0; j < n; j++) for (i = 0; i < n; i++) {
+        var tv = tot[j * n + i];
+        if (tv > 3e-4 || tv < -3e-4) {
+          var cxm = (i - n / 2 + 0.5) * hc, cym = (j - n / 2 + 0.5) * hc;
+          if (cxm < bx0) bx0 = cxm; if (cxm > bx1) bx1 = cxm; if (cym < by0) by0 = cym; if (cym > by1) by1 = cym;
+        }
+      }
+      bx0 -= 2 * hc; bx1 += 2 * hc; by0 -= 2 * hc; by1 += 2 * hc;
+    }
+    for (j = 0; j < Hg; j++) {
+      var Y = (j - m + 0.5) * dp - fovH / 2;
+      var cy = Y / hc + n / 2 - 0.5, jy = Math.floor(cy);
+      if (mech) bsplineWeights(cy - jy, wy);
+      for (i = 0; i < Wg; i++) {
+        var X = (i - m + 0.5) * dp - fovW / 2;
+        k = j * Wg + i;
+        var s = (mp.d > 0 && Math.abs(X - mp.x) < reach && Math.abs(Y - mp.y) < reach) ? ind.pen(X, Y, mp) : -BIG;
+        Sf[k] = s;
+        var u;
+        if (mech) {
+          var uc = 0;
+          if (X > bx0 && X < bx1 && Y > by0 && Y < by1) {
+            var cx = X / hc + n / 2 - 0.5, ix = Math.floor(cx);
+            bsplineWeights(cx - ix, wx);
+            for (var b = 0; b < 4; b++) {
+              var yy = clamp(jy - 1 + b, 0, n - 1), row = yy * n, acc = 0;
+              for (var a = 0; a < 4; a++) acc += wx[a] * coef[row + clamp(ix - 1 + a, 0, n - 1)];
+              uc += wy[b] * acc;
+            }
+          }
+          u = s > uc ? s : uc;
+          // pressure (kPa), nearest cell
+          var pi = clamp(Math.round(cx), 0, n - 1), pj = clamp(Math.round(cy), 0, n - 1);
+          PR[k] = p ? p[pj * n + pi] * 1000 : 0;
+        } else { u = s > 0 ? s : 0; PR[k] = 0; }
+        U[k] = u;
+        MK[k] = (s > 1e-3 && u - s < 0.01) ? 1 : 0;      // contact: gel within 10 um of the indenter
+      }
+    }
+    // Coating bending: low-pass with the plate/foundation cut-off (fine grid)
+    if (mech && P.f2.plate) {
+      var D = P.f2.Ec * Math.pow(P.f2.tc, 3) / 9, Cc = 2 * (1 - P.f2.nu * P.f2.nu) / P.f2.E;
+      var kc = Math.pow(1 / (Cc * D), 1 / 3), sig = 1.1774 / kc / dp;
+      if (sig > 0.25) blur(U, U, Wg, Hg, sig, this.T1);
+    }
+    this.shearInfo = null;
+    if (shear && P.f6 && P.f6.on) this.shearWarp(P, shear, dp, fovW, fovH);
+    this.normals(dp);
+    // bounding box of the deformation (for shadow culling)
+    var x0 = Wg, x1 = -1, y0 = Hg, y1 = -1, umax = 0;
+    for (j = 0; j < Hg; j++) for (i = 0; i < Wg; i++) {
+      var uu = U[j * Wg + i];
+      if (uu > umax) umax = uu;
+      if (uu > 1e-3 || uu < -1e-3) { if (i < x0) x0 = i; if (i > x1) x1 = i; if (j < y0) y0 = j; if (j > y1) y1 = j; }
+    }
+    this.umax = umax; this.bbox = x1 >= 0 ? [x0, y0, x1, y1] : null;
+    var sw = 0, scx = 0, scy = 0, scu = 0;
+    if (umax > 1e-4) for (j = 0; j < Hg; j++) for (i = 0; i < Wg; i++) {
+      var w = U[j * Wg + i] - 0.3 * umax;
+      if (w > 0) { sw += w; scx += w * ((i - m + 0.5) * dp - fovW / 2); scy += w * ((j - m + 0.5) * dp - fovH / 2); scu += w * U[j * Wg + i]; }
+    }
+    this.centroid = sw > 0 ? [scx / sw, scy / sw, scu / sw] : [0, 0, 0];
+    return st;
+  };
+  /* =====================================================================
+     Factor 6 - friction / shear. While sticking, the gel under the contact is
+     displaced tangentially with the indenter: u_t(x) = w(x) (D + phi x (x - c)),
+     w = 1 in the stick zone, decaying over ~t outside. The surface is warped
+     (x -> x + u_t) and, for an incompressible bonded layer (depth-averaged
+     continuity), rises/sinks by  du_z = (t/2) div u_t  (pile-up ahead, sink behind).
+     The stick limit |D| <= mu F / K_t, K_t = G A_eff / t, is applied by the caller.
+     ===================================================================== */
+  Sim.prototype.shearWarp = function (P, sh, dp, fovW, fovH) {
+    var Wg = this.Wg, Hg = this.Hg, Ng = Wg * Hg, m = this.m, t = P.sensor.tGel, i, j, k;
+    var U = this.U, MK = this.MK, PR = this.PR, Sf = this.Sf;
+    if (!this.WX || this.WX.length !== Ng) { this.WX = new Float32Array(Ng); this.WY = new Float32Array(Ng); this.WW = new Float32Array(Ng); }
+    var w = this.WW, ux = this.WX, uy = this.WY, tmp = this.T1, wmax = 0;
+    for (k = 0; k < Ng; k++) w[k] = MK[k];
+    blur(w, w, Wg, Hg, 1.0 * t / dp, tmp);
+    for (k = 0; k < Ng; k++) if (w[k] > wmax) wmax = w[k];
+    var Aeff = 0, Ir2 = 0;
+    if (wmax <= 1e-6) { this.shearInfo = { Aeff: 0, Ir2: 0 }; return; }
+    // rigid inside the stick zone (w = 1), smooth decay outside
+    for (k = 0; k < Ng; k++) { var wv = MK[k] ? 1 : w[k] / (0.5 * wmax); w[k] = wv > 1 ? 1 : wv; }
+    wmax = 1;
+    for (j = 0; j < Hg; j++) {
+      var Y = (j - m + 0.5) * dp - fovH / 2;
+      for (i = 0; i < Wg; i++) {
+        var X = (i - m + 0.5) * dp - fovW / 2; k = j * Wg + i;
+        var ww = w[k] / wmax, rx = X - sh.cx, ry = Y - sh.cy;
+        w[k] = ww; Aeff += ww; Ir2 += ww * (rx * rx + ry * ry);
+        ux[k] = ww * (sh.dx - sh.phi * ry); uy[k] = ww * (sh.dy + sh.phi * rx);
+      }
+    }
+    this.shearInfo = { Aeff: Aeff * dp * dp, Ir2: Ir2 * dp * dp };
+    if (!sh.dx && !sh.dy && !sh.phi) return;
+    var U2 = new Float32Array(Ng), S2 = new Float32Array(Ng), M2 = new Uint8Array(Ng), P2 = new Float32Array(Ng), DV = this.T2;
+    // divergence of the tangential field (material frame)
+    for (j = 0; j < Hg; j++) {
+      var jm = j > 0 ? j - 1 : j, jp = j < Hg - 1 ? j + 1 : j;
+      for (i = 0; i < Wg; i++) {
+        var im = i > 0 ? i - 1 : i, ip = i < Wg - 1 ? i + 1 : i;
+        DV[j * Wg + i] = (ux[j * Wg + ip] - ux[j * Wg + im]) / ((ip - im) * dp) + (uy[jp * Wg + i] - uy[jm * Wg + i]) / ((jp - jm) * dp);
+      }
+    }
+    // camera pixel x sees material point xm with  xm + u_t(xm) = x  (fixed-point inversion)
+    for (j = 0; j < Hg; j++) {
+      for (i = 0; i < Wg; i++) {
+        k = j * Wg + i;
+        var sx = i - ux[k] / dp, sy = j - uy[k] / dp;
+        if (Math.abs(ux[k]) + Math.abs(uy[k]) > 1e-3 * dp) for (var it = 0; it < 5; it++) {
+          var nx2 = i - sampleBil(ux, Wg, Hg, sx, sy) / dp, ny2 = j - sampleBil(uy, Wg, Hg, sx, sy) / dp;
+          var dd = Math.abs(nx2 - sx) + Math.abs(ny2 - sy); sx = nx2; sy = ny2;
+          if (dd < 2e-3) break;
+        }
+        U2[k] = sampleBil(U, Wg, Hg, sx, sy) + 0.5 * t * sampleBil(DV, Wg, Hg, sx, sy);
+        S2[k] = sampleBil(Sf, Wg, Hg, sx, sy);
+        var ni = clamp(Math.round(sx), 0, Wg - 1), nj = clamp(Math.round(sy), 0, Hg - 1);
+        M2[k] = MK[nj * Wg + ni]; P2[k] = PR[nj * Wg + ni];
+      }
+    }
+    U.set(U2); Sf.set(S2); MK.set(M2); PR.set(P2);
+  };
+  Sim.prototype.normals = function (dp) {
+    var Wg = this.Wg, Hg = this.Hg, U = this.U, NX = this.NX, NY = this.NY, NZ = this.NZ;
+    for (var j = 0; j < Hg; j++) {
+      var jm = j > 0 ? j - 1 : j, jp = j < Hg - 1 ? j + 1 : j, iy = 1 / ((jp - jm) * dp);
+      for (var i = 0; i < Wg; i++) {
+        var im = i > 0 ? i - 1 : i, ip = i < Wg - 1 ? i + 1 : i, k = j * Wg + i;
+        var gx = (U[j * Wg + ip] - U[j * Wg + im]) / ((ip - im) * dp), gy = (U[jp * Wg + i] - U[jm * Wg + i]) * iy;
+        var q = 1 / Math.sqrt(1 + gx * gx + gy * gy);
+        NX[k] = -gx * q; NY[k] = -gy * q; NZ[k] = q;
+      }
+    }
+  };
+  Sim.prototype.flat = function () {
+    this.U.fill(0); this.NX.fill(0); this.NY.fill(0); this.NZ.fill(1); this.MK.fill(0); this.PR.fill(0);
+    this.Sf.fill(-BIG); this.bbox = null; this.umax = 0;
+  };
+
+  /* ---------- Factor 3 / 4: light sources ---------- */
+  function fresnelUnpol(cosi, n1, n2) {
+    var sini = Math.sqrt(Math.max(0, 1 - cosi * cosi)), sint = n1 / n2 * sini;
+    if (sint >= 1) return 1;
+    var cost = Math.sqrt(1 - sint * sint);
+    var rs = (n1 * cosi - n2 * cost) / (n1 * cosi + n2 * cost), rp = (n1 * cost - n2 * cosi) / (n1 * cost + n2 * cosi);
+    return 0.5 * (rs * rs + rp * rp);
+  }
+  Sim.prototype.sources = function (P) {
+    var f3 = P.f3, f4 = P.f4, out = [], useF4 = f4 && f4.on;
+    var Zb = P.sensor.tGel + P.sensor.tAcr, nA = f4 ? f4.nAcr : 1.49;
+    for (var q = 0; q < f3.leds.length; q++) {
+      var L = f3.leds[q];
+      if (!L.on || !(L.I > 0)) continue;
+      var az = L.az * Math.PI / 180, tl = L.tilt * Math.PI / 180, ca = Math.cos(az), sa = Math.sin(az);
+      var cx = L.dist * ca, cy = -L.dist * sa, cz = L.z;
+      var ax = -ca * Math.cos(tl), ay = sa * Math.cos(tl), azz = -Math.sin(tl);
+      var m = Math.log(0.5) / Math.log(Math.cos(clamp(L.half, 5, 89) * Math.PI / 180));
+      var subs = [], ns = (f3.on && f3.falloff && L.strip > 0.05) ? 3 : 1;
+      for (var k = 0; k < ns; k++) {
+        var o = ns === 1 ? 0 : (k - 1) * L.strip / 2;
+        subs.push([cx + sa * o, cy + ca * o, cz, 1 / ns]);
+      }
+      var rgb = ledResponse(L, f3.on && f3.spectral);
+      var base = { name: L.type, cx: cx, cy: cy, cz: cz, ax: ax, ay: ay, az: azz, m: m, subs: subs, rgb: rgb,
+        size: Math.max(0.2, L.size), mirror: false, I: L.I };
+      // power so that the flat-surface irradiance at the FOV centre equals I (direct path)
+      var e0 = 0;
+      for (k = 0; k < subs.length; k++) {
+        var dx = subs[k][0], dy = subs[k][1], dz = subs[k][2], r = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        var ce = (dx * ax + dy * ay + dz * azz) / r;            // cos of emission angle (LED -> centre = -d)
+        ce = -ce; e0 += subs[k][3] * Math.pow(Math.max(ce, 1e-4), m) * (dz / r) / (r * r);
+      }
+      base.phi = L.I / Math.max(e0, 1e-12);
+      out.push(base);
+      if (useF4 && f4.refract && cz < Zb) {     // image source: total internal reflection at the acrylic/air face
+        var mz = 2 * Zb - cz, msubs = subs.map(function (sb) { return [sb[0], sb[1], 2 * Zb - sb[2], sb[3]]; });
+        out.push({ name: L.type + "'", cx: cx, cy: cy, cz: mz, ax: ax, ay: ay, az: -azz, m: m, subs: msubs, rgb: rgb,
+          size: base.size, mirror: true, phi: base.phi, I: L.I, Zb: Zb, nA: nA });
+      }
+    }
+    // directional equivalents (factor 3 off): direction and perpendicular irradiance at the FOV centre
+    for (q = 0; q < out.length; q++) {
+      var S = out[q], dxx = S.cx, dyy = S.cy, dzz = S.cz, rr = Math.sqrt(dxx * dxx + dyy * dyy + dzz * dzz);
+      S.dlx = dxx / rr; S.dly = dyy / rr; S.dlz = dzz / rr;
+      var cem = -(dxx * S.ax + dyy * S.ay + dzz * S.az) / rr;
+      var Rm = S.mirror ? fresnelUnpol(dzz / rr, nA, 1) : 1;
+      S.dE = S.mirror ? S.phi * Math.pow(Math.max(cem, 1e-4), S.m) * Rm / (rr * rr) : S.I / S.dlz;
+    }
+    return out;
+  };
+
+  /* ---------- Factor 1 (+3): direct illumination on the gel grid ----------
+     Per source, the flat-surface vector irradiance  Ev = sum_sub e*l  and
+     Es = sum_sub e are cached (they only change with parameters).
+     Each frame, pixels are classified:
+       0 undeformed  -> cached flat radiance
+       1 |u| < 0.03 mm -> Lambert = max(0, n . Ev), GGX with the mean direction
+       2 contact zone -> full point/strip evaluation at the displaced height
+     Cast shadows: one horizon sweep per source (direction from the
+     deformation centroid to the source), with a soft penumbra. */
+  var ULIN = 0.25, DZ_FD = 0.1;
+  Sim.prototype.lightCtx = function (P, srcs) {
+    var f1 = P.f1, f3 = P.f3, f4 = P.f4 && P.f4.on ? P.f4 : null, al = Math.max(0.02, f1.alpha);
+    return { srcs: srcs, spec: f1.on && f1.spec && f1.ks > 0, shadows: f1.on && f1.shadow,
+      rho: (f1.on ? f1.rhoD : 0.7) / Math.PI, ks: f1.ks, a2: al * al,
+      point: f3.on && f3.falloff, mu: (f4 && f4.absorb) ? f4.mu : 0, dp: this.dp(P) };
+  };
+  /* irradiance of one source at a surface point: fills tmp = [E (n-weighted), Es, lx, ly, lz] */
+  function srcIrr(C, S, X, Y, u, nx, ny, nz, tmp) {
+    var E = 0, Es = 0, lx, ly, lz;
+    if (C.point) {
+      var subs = S.subs, sx = 0, sy = 0, sz = 0, m1 = Math.abs(S.m - 1) < 1e-6;
+      for (var b = 0; b < subs.length; b++) {
+        var sb = subs[b], dx = sb[0] - X, dy = sb[1] - Y, dz = sb[2] - u;
+        var ir = 1 / Math.sqrt(dx * dx + dy * dy + dz * dz);
+        lx = dx * ir; ly = dy * ir; lz = dz * ir;
+        var ce = -(lx * S.ax + ly * S.ay + lz * S.az);
+        if (ce <= 0) continue;
+        var e = sb[3] * S.phi * (m1 ? ce : Math.pow(ce, S.m)) * ir * ir;
+        if (C.mu > 0) e *= Math.exp(-C.mu / ir);
+        if (S.mirror) e *= fresnelUnpol(lz, S.nA, 1);
+        var ndl = nx * lx + ny * ly + nz * lz;
+        if (ndl > 0) E += e * ndl;
+        Es += e; sx += e * lx; sy += e * ly; sz += e * lz;
+      }
+      if (Es > 0) { var sl = 1 / Math.sqrt(sx * sx + sy * sy + sz * sz); tmp[2] = sx * sl; tmp[3] = sy * sl; tmp[4] = sz * sl; }
+    } else {
+      Es = S.dE;
+      if (C.mu > 0) Es *= Math.exp(-C.mu * Math.sqrt(S.cx * S.cx + S.cy * S.cy + S.cz * S.cz));
+      var d0 = nx * S.dlx + ny * S.dly + nz * S.dlz;
+      E = d0 > 0 ? Es * d0 : 0; tmp[2] = S.dlx; tmp[3] = S.dly; tmp[4] = S.dlz;
+    }
+    tmp[0] = E; tmp[1] = Es;
+  }
+  /* BRDF: diffuse + GGX (height-correlated Smith) for irradiance E (Lambert-weighted) and Es along l */
+  function brdf(C, E, Es, lx, ly, lz, nx, ny, nz, vx, vy, vz) {
+    var Lr = C.rho * E;
+    if (C.spec && Es > 0) {
+      var ndl = nx * lx + ny * ly + nz * lz, ndv = nx * vx + ny * vy + nz * vz;
+      if (ndl > 0 && ndv > 1e-4) {
+        var a2 = C.a2, hx = lx + vx, hy = ly + vy, hz = lz + vz, hl = 1 / Math.sqrt(hx * hx + hy * hy + hz * hz);
+        var ndh = (nx * hx + ny * hy + nz * hz) * hl, dd = ndh * ndh * (a2 - 1) + 1;
+        var vis = 0.5 / (ndl * Math.sqrt(ndv * ndv * (1 - a2) + a2) + ndv * Math.sqrt(ndl * ndl * (1 - a2) + a2));
+        Lr += C.ks * (a2 / (Math.PI * dd * dd)) * vis * Es * ndl;
+      }
+    }
+    return Lr;
+  }
+  Sim.prototype.buildFlat = function (C, P) {
+    var Wg = this.Wg, Hg = this.Hg, Ng = Wg * Hg, m = this.m, dp = C.dp, fovW = P.sensor.fovW, fovH = fovW * this.H / this.W;
+    var srcs = C.srcs, ns = srcs.length, tmp = new Float64Array(5);
+    if (!this.EVI || this.EVI.length !== 8 * ns * Ng) { this.EVI = new Float32Array(8 * ns * Ng); this.BGSI = new Float32Array(ns * Ng); }
+    var t2 = new Float64Array(5);
+    var EVI = this.EVI, BGSI = this.BGSI;
+    var BGL = this.BGL = new Float32Array(3 * Ng), HZ = this.HZ = new Float32Array(3 * Ng);
+    for (var j = 0; j < Hg; j++) {
+      var Y = (j - m + 0.5) * dp - fovH / 2;
+      for (var i = 0; i < Wg; i++) {
+        var X = (i - m + 0.5) * dp - fovW / 2, k = j * Wg + i;
+        for (var q = 0; q < ns; q++) {
+          var S = srcs[q], rgb = S.rgb, o = k * ns + q;
+          srcIrr(C, S, X, Y, 0, 0, 0, 1, tmp);
+          var Es = tmp[1], E = tmp[0], lz = tmp[4] || 1e-9, sc = E / lz;   // vector irradiance with n.Ev = E for the flat normal
+          EVI[8 * o] = sc * tmp[2]; EVI[8 * o + 1] = sc * tmp[3]; EVI[8 * o + 2] = sc * tmp[4]; EVI[8 * o + 3] = Es;
+          // first-order dependence on the surface height (finite difference at u = DZ_FD)
+          srcIrr(C, S, X, Y, DZ_FD, 0, 0, 1, t2);
+          var sc2 = t2[0] / (t2[4] || 1e-9);
+          EVI[8 * o + 4] = (sc2 * t2[2] - EVI[8 * o]) / DZ_FD; EVI[8 * o + 5] = (sc2 * t2[3] - EVI[8 * o + 1]) / DZ_FD;
+          EVI[8 * o + 6] = (sc2 * t2[4] - EVI[8 * o + 2]) / DZ_FD; EVI[8 * o + 7] = (t2[1] - Es) / DZ_FD;
+          var v = brdf(C, E, Es, tmp[2], tmp[3], tmp[4], 0, 0, 1, this.VX[k], this.VY[k], this.VZ[k]);
+          BGSI[o] = v;
+          BGL[k] += v * rgb[0]; BGL[Ng + k] += v * rgb[1]; BGL[2 * Ng + k] += v * rgb[2];
+          HZ[k] += Es * rgb[0]; HZ[Ng + k] += Es * rgb[1]; HZ[2 * Ng + k] += Es * rgb[2];
+        }
+      }
+    }
+    // bulk-scattered light is spread over a few mm inside the gel
+    var sh = 2.0 / dp;
+    for (var c = 0; c < 3; c++) { var hc = HZ.subarray(c * Ng, (c + 1) * Ng); blurWide(hc, hc, Wg, Hg, sh); }
+  };
+  Sim.prototype.radiance = function (P, srcs) {
+    var Wg = this.Wg, Hg = this.Hg, Ng = Wg * Hg, m = this.m, dp = this.dp(P), fovW = P.sensor.fovW, fovH = fovW * this.H / this.W;
+    var C = this.lightCtx(P, srcs), ns = srcs.length, q, i, j, k;
+    var key = JSON.stringify([P.f1, P.f3, P.f4, P.sensor, this.viewKey, this.W]);
+    if (key !== this.flatKey || !this.BGL) { this.buildFlat(C, P); this.flatKey = key; }
+    var Ld = this.Ld, BGL = this.BGL;
+    if (!this.bbox) { Ld.set(BGL); return; }
+    var U = this.U, NX = this.NX, NY = this.NY, NZ = this.NZ, VX = this.VX, VY = this.VY, VZ = this.VZ;
+    if (!this.CL || this.CL.length !== Ng) this.CL = new Uint8Array(Ng);
+    var CL = this.CL;
+    for (k = 0; k < Ng; k++) {
+      var au = U[k] < 0 ? -U[k] : U[k];
+      var s2 = NX[k] * NX[k] + NY[k] * NY[k];
+      CL[k] = (au > ULIN || s2 > 0.08) ? 2 : ((au > 1e-6 || s2 > 1e-12) ? 1 : 0);
+    }
+    // shadow maps (one sweep per source); VMIN = min over sources
+    var shadows = C.shadows && this.umax > 1e-3, hasV = new Uint8Array(ns);
+    if (shadows) {
+      if (!this.VS || this.VS.length !== ns * Ng) { this.VS = new Float32Array(ns * Ng); this.VMIN = new Float32Array(Ng); }
+      this.VMIN.fill(1);
+      for (q = 0; q < ns; q++) {
+        var Vq = this.VS.subarray(q * Ng, (q + 1) * Ng);
+        if (this.shadowSweep(srcs[q], C, P, Vq)) { hasV[q] = 1; for (k = 0; k < Ng; k++) if (Vq[k] < this.VMIN[k]) this.VMIN[k] = Vq[k]; }
+      }
+    }
+    var VS = this.VS, VMIN = shadows ? this.VMIN : null, EVI = this.EVI, BGSI = this.BGSI, tmp = new Float64Array(5);
+    var R0 = new Float64Array(ns), R1 = new Float64Array(ns), R2 = new Float64Array(ns);
+    for (q = 0; q < ns; q++) { R0[q] = srcs[q].rgb[0]; R1[q] = srcs[q].rgb[1]; R2[q] = srcs[q].rgb[2]; }
+    for (j = 0; j < Hg; j++) {
+      var Y = (j - m + 0.5) * dp - fovH / 2;
+      for (i = 0; i < Wg; i++) {
+        k = j * Wg + i;
+        var cls = CL[k];
+        if (cls === 0 && (!VMIN || VMIN[k] >= 1)) { Ld[k] = BGL[k]; Ld[Ng + k] = BGL[Ng + k]; Ld[2 * Ng + k] = BGL[2 * Ng + k]; continue; }
+        var nx = NX[k], ny = NY[k], nz = NZ[k], vx = VX[k], vy = VY[k], vz = VZ[k], ra = 0, rb = 0, rc = 0, X = 0;
+        if (cls === 2) X = (i - m + 0.5) * dp - fovW / 2;
+        for (q = 0; q < ns; q++) {
+          var vv = hasV[q] ? VS[q * Ng + k] : 1;
+          if (vv <= 0) continue;
+          var o = k * ns + q, val;
+          if (cls === 0) val = BGSI[o];
+          else if (cls === 1) {
+            var uu = U[k], b8 = 8 * o;
+            var ex = EVI[b8] + uu * EVI[b8 + 4], ey = EVI[b8 + 1] + uu * EVI[b8 + 5], ez = EVI[b8 + 2] + uu * EVI[b8 + 6], E = nx * ex + ny * ey + nz * ez;
+            var el = 1 / Math.sqrt(ex * ex + ey * ey + ez * ez + 1e-30);
+            val = brdf(C, E > 0 ? E : 0, EVI[b8 + 3] + uu * EVI[b8 + 7], ex * el, ey * el, ez * el, nx, ny, nz, vx, vy, vz);
+          } else {
+            srcIrr(C, srcs[q], X, Y, U[k], nx, ny, nz, tmp);
+            val = tmp[1] > 0 ? brdf(C, tmp[0], tmp[1], tmp[2], tmp[3], tmp[4], nx, ny, nz, vx, vy, vz) : 0;
+          }
+          val *= vv;
+          ra += val * R0[q]; rb += val * R1[q]; rc += val * R2[q];
+        }
+        Ld[k] = ra; Ld[Ng + k] = rb; Ld[2 * Ng + k] = rc;
+      }
+    }
+  };
+  /* Horizon sweep toward one source: V in [0,1] (soft), normalised so a flat surface has V = 1. */
+  Sim.prototype.shadowSweep = function (S, C, P, V) {
+    var Wg = this.Wg, Hg = this.Hg, U = this.U, dp = C.dp, cen = this.centroid, dx, dy, dz;
+    if (C.point) { dx = S.cx - cen[0]; dy = S.cy - cen[1]; dz = S.cz - cen[2]; } else { dx = S.dlx; dy = S.dly; dz = S.dlz; }
+    var dxy = Math.sqrt(dx * dx + dy * dy);
+    if (dxy < 1e-6 || dz <= 0) return false;
+    var slope = dz / dxy, dist = C.point ? Math.sqrt(dx * dx + dy * dy + dz * dz) : 60;
+    var tanA = Math.max(0.005, 0.5 * S.size / dist), vflat = sstep(-1, 1, slope / tanA);
+    var E = this.T2, T = this.T3, xmaj = Math.abs(dx) >= Math.abs(dy);
+    var nOuter = xmaj ? Wg : Hg, nInner = xmaj ? Hg : Wg;
+    var sg = xmaj ? (dx > 0 ? 1 : -1) : (dy > 0 ? 1 : -1), fo = xmaj ? dy / Math.abs(dx) : dx / Math.abs(dy);
+    var step = dp * Math.sqrt(1 + fo * fo), drop = slope * step;
+    for (var a = 0; a < nOuter; a++) {
+      var ia = sg > 0 ? nOuter - 1 - a : a, ip = ia + sg;
+      for (var b = 0; b < nInner; b++) {
+        var k = xmaj ? b * Wg + ia : ia * Wg + b, u = U[k], ep = -1e9, tp = 0;
+        if (a > 0) {
+          var bb = b + fo;
+          if (bb >= 0 && bb <= nInner - 1) {
+            var b0 = Math.floor(bb), f = bb - b0, b1 = b0 + 1 > nInner - 1 ? nInner - 1 : b0 + 1;
+            var k0 = xmaj ? b0 * Wg + ip : ip * Wg + b0, k1 = xmaj ? b1 * Wg + ip : ip * Wg + b1;
+            ep = E[k0] * (1 - f) + E[k1] * f - drop; tp = T[k0] * (1 - f) + T[k1] * f + step;
+          }
+        }
+        var vis = ep < -1e8 ? 1 : sstep(-1, 1, (u - ep) / (tp * tanA)) / vflat;
+        V[k] = vis > 1 ? 1 : vis;
+        if (u >= ep) { E[k] = u; T[k] = 0; } else { E[k] = ep; T[k] = tp; }
+      }
+    }
+    return true;
+  };
+
+  /* ---------- view vectors on the gel grid (camera geometry) ---------- */
+  Sim.prototype.viewVectors = function (P, cam) {
+    var key = cam.key;
+    if (key === this.viewKey) return;
+    this.viewKey = key;
+    var Wg = this.Wg, Hg = this.Hg, m = this.m, dp = this.dp(P), fovW = P.sensor.fovW, fovH = fovW * this.H / this.W;
+    for (var j = 0; j < Hg; j++) {
+      var Y = (j - m + 0.5) * dp - fovH / 2;
+      for (var i = 0; i < Wg; i++) {
+        var X = (i - m + 0.5) * dp - fovW / 2, k = j * Wg + i, r = Math.sqrt(X * X + Y * Y);
+        if (!cam.persp || r < 1e-9) { this.VX[k] = 0; this.VY[k] = 0; this.VZ[k] = 1; continue; }
+        var tg = cam.tanG(r), q = 1 / Math.sqrt(1 + tg * tg);
+        this.VX[k] = -X / r * tg * q; this.VY[k] = -Y / r * tg * q; this.VZ[k] = q;
+      }
+    }
+  };
+
+  /* ---------- camera projection: camera pixel -> surface point on the gel grid ---------- */
+  Sim.prototype.project = function (P, cam) {
+    var W = this.W, H = this.H, Wg = this.Wg, m = this.m, dp = this.dp(P), fovW = P.sensor.fovW, fovH = fovW * H / W;
+    var U = this.U, QX = this.QX, QY = this.QY;
+    for (var j = 0; j < H; j++) {
+      var Y = (j + 0.5) * dp - fovH / 2;
+      for (var i = 0; i < W; i++) {
+        var X = (i + 0.5) * dp - fovW / 2, c = j * W + i, qx = i + m, qy = j + m;
+        if (cam.persp) {
+          var r = Math.sqrt(X * X + Y * Y);
+          if (r > 1e-9) {
+            var kf = cam.tanG(r) / r, x = X, y = Y;
+            for (var it = 0; it < 4; it++) {
+              var gx = (x + fovW / 2) / dp - 0.5 + m, gy = (y + fovH / 2) / dp - 0.5 + m;
+              var uh = sampleBil(U, Wg, this.Hg, gx, gy);
+              x = X - X * kf * uh; y = Y - Y * kf * uh;
+            }
+            qx = (x + fovW / 2) / dp - 0.5 + m; qy = (y + fovH / 2) / dp - 0.5 + m;
+          }
+        }
+        QX[c] = qx; QY[c] = qy;
+      }
+    }
+  };
+  function sampleBil(A, w, h, x, y) {
+    x = clamp(x, 0, w - 1.001); y = clamp(y, 0, h - 1.001);
+    var ix = x | 0, iy = y | 0, fx = x - ix, fy = y - iy, k = iy * w + ix;
+    return (A[k] * (1 - fx) + A[k + 1] * fx) * (1 - fy) + (A[k + w] * (1 - fx) + A[k + w + 1] * fx) * fy;
+  }
+
+  /* gather radiance + registered ground truth into camera pixels */
+  Sim.prototype.resample = function (src3, P) {
+    var W = this.W, H = this.H, Nc = W * H, Wg = this.Wg, Hg = this.Hg, Ng = Wg * Hg, QX = this.QX, QY = this.QY;
+    var IL = this.IL, HU = this.HU, HN = this.HN, HM = this.HM, HP = this.HP;
+    for (var c = 0; c < Nc; c++) {
+      var x = clamp(QX[c], 0, Wg - 1.001), y = clamp(QY[c], 0, Hg - 1.001);
+      var ix = x | 0, iy = y | 0, fx = x - ix, fy = y - iy, k = iy * Wg + ix;
+      var w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
+      for (var ch = 0; ch < 3; ch++) {
+        var o = ch * Ng;
+        IL[ch * Nc + c] = src3[o + k] * w00 + src3[o + k + 1] * w10 + src3[o + k + Wg] * w01 + src3[o + k + Wg + 1] * w11;
+      }
+      HU[c] = this.U[k] * w00 + this.U[k + 1] * w10 + this.U[k + Wg] * w01 + this.U[k + Wg + 1] * w11;
+      var nx = this.NX[k] * w00 + this.NX[k + 1] * w10 + this.NX[k + Wg] * w01 + this.NX[k + Wg + 1] * w11;
+      var ny = this.NY[k] * w00 + this.NY[k + 1] * w10 + this.NY[k + Wg] * w01 + this.NY[k + Wg + 1] * w11;
+      var nz = this.NZ[k] * w00 + this.NZ[k + 1] * w10 + this.NZ[k + Wg] * w01 + this.NZ[k + Wg + 1] * w11;
+      var q = 1 / Math.sqrt(nx * nx + ny * ny + nz * nz);
+      HN[3 * c] = nx * q; HN[3 * c + 1] = ny * q; HN[3 * c + 2] = nz * q;
+      var kn = (fy < 0.5 ? iy : iy + 1) * Wg + (fx < 0.5 ? ix : ix + 1);
+      HM[c] = this.MK[kn]; HP[c] = this.PR[kn];
+    }
+  };
+
+  /* ---------- camera geometry (perspective + optional refraction), as a radial lookup ---------- */
+  Sim.prototype.cameraModel = function (P) {
+    var f4 = P.f4 && P.f4.on ? P.f4 : null, f5 = P.f5 && P.f5.on ? P.f5 : null;
+    var persp = !!(f5 && f5.persp), refr = !!(f4 && f4.refract);
+    var tg = P.sensor.tGel, ta = P.sensor.tAcr, Zc = P.f5 ? P.f5.Zc : 15;
+    var nG = refr ? f4.nGel : 1, nA = refr ? f4.nAcr : 1;
+    var key = [persp, refr, tg, ta, Zc, nG, nA, P.sensor.fovW, this.W, this.H].join(',');
+    if (this._cam && this._cam.key === key) return this._cam;
+    var tair = Math.max(0.5, Zc - tg - ta), fovW = P.sensor.fovW, fovH = fovW * this.H / this.W;
+    var rmax = 0.5 * Math.sqrt(fovW * fovW + fovH * fovH) + 3, NT = 400;
+    var tabG = new Float64Array(NT + 1), tabA = new Float64Array(NT + 1), tabT = new Float64Array(NT + 1);
+    for (var q = 0; q <= NT; q++) {
+      var r = rmax * q / NT, lo = 0, hi = Math.PI / 2 - 1e-3;
+      for (var it = 0; it < 60; it++) {
+        var mid = 0.5 * (lo + hi), sa = Math.sin(mid), sAc = sa / nA, sG = sa / nG;
+        var off = tair * Math.tan(mid) + ta * sAc / Math.sqrt(1 - sAc * sAc) + tg * sG / Math.sqrt(1 - sG * sG);
+        if (off < r) lo = mid; else hi = mid;
+      }
+      var th = 0.5 * (lo + hi), sg = Math.sin(th) / nG, sac = Math.sin(th) / nA;
+      tabG[q] = sg / Math.sqrt(1 - sg * sg); tabA[q] = Math.tan(th);
+      tabT[q] = refr ? (1 - fresnelUnpol(Math.sqrt(1 - sg * sg), nG, nA)) * (1 - fresnelUnpol(Math.sqrt(1 - sac * sac), nA, 1)) : 1;
+    }
+    for (q = NT; q >= 0; q--) tabT[q] /= tabT[0];
+    function lut(tab) { return function (r) { var x = clamp(r / rmax * NT, 0, NT - 1e-6), i = x | 0, f = x - i; return tab[i] * (1 - f) + tab[i + 1] * f; }; }
+    this._cam = { key: key, persp: persp, refr: refr, tanG: lut(tabG), tanAir: lut(tabA), trans: lut(tabT),
+      zEff: tair + ta / nA + tg / nG, nG: nG, tair: tair };
+    return this._cam;
+  };
+
+  /* =====================================================================
+     Factor 4 - light transport inside the gel (on the gel grid, Ld -> Lt)
+       haze   : isotropic bulk scattering; each source adds  (rho/pi) * h * Es (smoothed)
+       interr.: one-bounce gather from neighbouring coating,
+                L += rho * k * cav * blur_R(L),  cav = clamp((blur_R(u) - u)/R, 0, 1)
+       trap   : light leaving the coating outside the escape cone (fraction 1 - 1/n^2)
+                is totally reflected at the acrylic/air face and returns; per bounce
+                g = rho (1 - 1/n^2)(1 - loss), multi-bounce gain g/(1-g), spread by
+                two Gaussians (1.5 T and 4 T, T = gel + acrylic thickness)
+     ===================================================================== */
+  Sim.prototype.optics = function (P) {
+    var f4 = P.f4, Lt = this.Lt, Ld = this.Ld;
+    Lt.set(Ld);
+    if (!f4 || !f4.on) return;
+    var Wg = this.Wg, Hg = this.Hg, Ng = Wg * Hg, dp = this.dp(P), rho = P.f1.on ? P.f1.rhoD : 0.7, c, k;
+    var T1 = this.T1, T2 = this.T2, T3 = this.T3;
+    if (f4.absorb && f4.haze > 0 && this.HZ) {
+      var hz = rho / Math.PI * f4.haze;
+      for (k = 0; k < 3 * Ng; k++) Lt[k] += hz * this.HZ[k];
+    }
+    if (f4.interrefl && f4.kir > 0 && this.bbox) {
+      var R = Math.max(0.5, f4.irR / dp);
+      blur(this.U, T1, Wg, Hg, R, T2);
+      var cav = this.T3, any = false;
+      for (k = 0; k < Ng; k++) { var cv = (T1[k] - this.U[k]) / (f4.irR); cv = cv < 0 ? 0 : (cv > 1 ? 1 : cv); cav[k] = cv; if (cv > 1e-4) any = true; }
+      if (any) {
+        var add = new Float32Array(Ng);
+        for (c = 0; c < 3; c++) {
+          var ch = Lt.subarray(c * Ng, (c + 1) * Ng);
+          blur(ch, T1, Wg, Hg, R, T2);
+          for (k = 0; k < Ng; k++) add[k] = rho * f4.kir * cav[k] * T1[k];
+          for (k = 0; k < Ng; k++) ch[k] += add[k];
+        }
+      }
+    }
+    if (f4.trap) {
+      var ft = 1 - 1 / (f4.nGel * f4.nGel), g = rho * ft * (1 - f4.trapLoss), G = g / Math.max(1e-6, 1 - g);
+      var Tm = P.sensor.tGel + P.sensor.tAcr, s1 = 1.5 * Tm / dp, s2 = 4 * Tm / dp;
+      for (c = 0; c < 3; c++) {
+        var ch2 = Lt.subarray(c * Ng, (c + 1) * Ng);
+        blurWide(ch2, T1, Wg, Hg, s1); blurWide(ch2, T3, Wg, Hg, s2);
+        for (k = 0; k < Ng; k++) ch2[k] += G * (0.5 * T1[k] + 0.5 * T3[k]);
+      }
+    }
+  };
+
+  /* =====================================================================
+     Factor 5 - camera optics on the camera grid (IL -> C1..C3)
+       veiling glare (factor 4), Fresnel transmission of oblique rays (factor 4),
+       defocus: thin lens, object-side blur diameter b = A |z - zf| / z with the
+       apparent (refraction-shortened) depth, approximated as a Gaussian sigma = b/4
+       plus a base PSF; vignetting: cos^4 of the field angle x (1 - k r^2).
+     ===================================================================== */
+  Sim.prototype.cameraOptics = function (P, cam) {
+    var W = this.W, H = this.H, Nc = W * H, C = [this.C1, this.C2, this.C3], IL = this.IL, c, k;
+    for (c = 0; c < 3; c++) C[c].set(IL.subarray(c * Nc, (c + 1) * Nc));
+    var f4 = P.f4 && P.f4.on ? P.f4 : null, f5 = P.f5 && P.f5.on ? P.f5 : null, dp = this.dp(P);
+    var fovW = P.sensor.fovW, fovH = fovW * H / W, rc = 0.5 * Math.sqrt(fovW * fovW + fovH * fovH);
+    if (!this.CT || this.CT.length !== Nc) { this.CT = new Float32Array(Nc); this.CU = new Float32Array(Nc); }
+    var tmp = this.CT, tmp2 = this.CU;
+    if (f4 && f4.absorb && f4.glare > 0) {
+      for (c = 0; c < 3; c++) {
+        blurWide(C[c], tmp2, W, H, f4.glareSigma / dp);
+        for (k = 0; k < Nc; k++) C[c][k] = (1 - f4.glare) * C[c][k] + f4.glare * tmp2[k];
+      }
+    }
+    if (f5 && f5.defocus) this.defocus(P, cam);
+    var trans = cam.persp && cam.refr, vig = f5 && f5.vignette;
+    if (trans || vig) {
+      var vkey = cam.key + '|' + trans + '|' + (vig ? f5.vn + ',' + f5.vk : '-');
+      if (vkey !== this.vigKey) {
+        this.vigKey = vkey; if (!this.VIG || this.VIG.length !== Nc) this.VIG = new Float32Array(Nc);
+        for (var j = 0; j < H; j++) {
+          var Y = (j + 0.5) * dp - fovH / 2;
+          for (var i = 0; i < W; i++) {
+            var X = (i + 0.5) * dp - fovW / 2, r = Math.sqrt(X * X + Y * Y), f = 1;
+            if (trans) f *= cam.trans(r);
+            if (vig) { var ta = cam.tanAir(r), c2 = 1 / (1 + ta * ta); f *= Math.pow(c2, f5.vn / 2) * (1 - f5.vk * (r / rc) * (r / rc)); }
+            this.VIG[j * W + i] = f;
+          }
+        }
+      }
+      var VIG = this.VIG;
+      for (k = 0; k < Nc; k++) { var fv = VIG[k]; C[0][k] *= fv; C[1][k] *= fv; C[2][k] *= fv; }
+    }
+  };
+  Sim.prototype.defocus = function (P, cam) {
+    var f5 = P.f5, W = this.W, H = this.H, Nc = W * H, dp = this.dp(P), HU = this.HU, SG = this.DZ, k, c;
+    var A = f5.f / f5.N, z0 = cam.zEff, nG = cam.nG, zf = z0 - f5.focus / nG, smax = 0;
+    for (k = 0; k < Nc; k++) {
+      var z = z0 - HU[k] / nG, b = A * Math.abs(z - zf) / Math.max(z, 0.1), sb = b / 4 / dp;
+      var sg = Math.sqrt(f5.psf0 * f5.psf0 + sb * sb); SG[k] = sg; if (sg > smax) smax = sg;
+    }
+    if (smax < 0.15) return;
+    var smin = 1e9; for (k = 0; k < Nc; k++) if (SG[k] < smin) smin = SG[k];
+    if (smax - smin < 0.12) { var su = 0.5 * (smax + smin); for (c = 0; c < 3; c++) { var Cc = [this.C1, this.C2, this.C3][c]; blur(Cc, Cc, W, H, su, this.CT); } return; }
+    var levels = [0], sl = 0.6;
+    while (levels[levels.length - 1] < smax) { levels.push(sl); sl *= 1.8; }
+    var C = [this.C1, this.C2, this.C3], nl = levels.length;
+    if (!this.DB || this.DB.length !== nl * 3 * Nc) this.DB = new Float32Array(nl * 3 * Nc);
+    var DB = this.DB, tmp = this.CT;
+    for (var l = 0; l < nl; l++) for (c = 0; c < 3; c++) {
+      var dst = DB.subarray((l * 3 + c) * Nc, (l * 3 + c + 1) * Nc);
+      if (l === 0) dst.set(C[c]); else blur(C[c], dst, W, H, levels[l], tmp);
+    }
+    for (k = 0; k < Nc; k++) {
+      var s = SG[k], a = 0;
+      while (a < nl - 2 && levels[a + 1] < s) a++;
+      var f = GSclamp((s - levels[a]) / (levels[a + 1] - levels[a]), 0, 1);
+      for (c = 0; c < 3; c++) C[c][k] = DB[(a * 3 + c) * Nc + k] * (1 - f) + DB[((a + 1) * 3 + c) * Nc + k] * f;
+    }
+  };
+  function GSclamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  Sim.prototype.measure = function () {
+    var Nc = this.W * this.H, a = new Float32Array(Nc), m = [0, 0, 0];
+    for (var i = 0; i < Nc; i++) {
+      var r = this.C1[i], g = this.C2[i], b = this.C3[i];
+      a[i] = Math.max(r, g, b); m[0] += r; m[1] += g; m[2] += b;
+    }
+    a.sort();
+    return { p99: a[Math.min(Nc - 1, Math.floor(0.99 * Nc))], mean: [m[0] / Nc, m[1] / Nc, m[2] / Nc] };
+  };
+  /* exposure -> shot + read noise -> white balance -> gamma -> 8 bit */
+  Sim.prototype.sensor = function (P, cam, seed, expo) {
+    var Nc = this.W * this.H, img = this.img, f5 = P.f5 && P.f5.on ? P.f5 : null;
+    var k = expo.k, wb = [1, 1, 1], noise = f5 && f5.noise, gam = f5 && f5.gamma ? 1 / f5.g : 1;
+    if (f5) {
+      if (f5.ae === 'manual') k *= Math.pow(2, f5.ev);
+      else if (f5.ae === 'auto') { var ms = this.measure(); k = 0.85 / Math.max(ms.p99, 1e-12); }
+      if (f5.wb === 'gray' && expo.wb) wb = expo.wb; else if (f5.wb === 'manual') wb = [f5.wbR, 1, f5.wbB];
+    }
+    this.expoUsed = k;
+    var FW = noise ? f5.fw : 1, rd = noise ? f5.read : 0, x = ((seed * 2654435761) >>> 0) || 1;
+    var lut = null, C1 = this.C1, C2 = this.C2, C3 = this.C3, w0 = wb[0], w1 = wb[1], w2 = wb[2], N = NORM, v0, v1, v2, e;
+    if (gam !== 1) { lut = new Uint8Array(4097); for (var q = 0; q <= 4096; q++) lut[q] = Math.round(255 * Math.pow(q / 4096, gam)); }
+    for (var i = 0; i < Nc; i++) {
+      v0 = C1[i] * k; v1 = C2[i] * k; v2 = C3[i] * k;
+      if (noise) {
+        x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0;
+        e = v0 * FW; if (e < 0) e = 0; v0 = (e + Math.sqrt(e) * N[x & 65535] + rd * N[x >>> 16]) / FW;
+        x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0;
+        e = v1 * FW; if (e < 0) e = 0; v1 = (e + Math.sqrt(e) * N[x & 65535] + rd * N[x >>> 16]) / FW;
+        x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0;
+        e = v2 * FW; if (e < 0) e = 0; v2 = (e + Math.sqrt(e) * N[x & 65535] + rd * N[x >>> 16]) / FW;
+      }
+      v0 *= w0; v1 *= w1; v2 *= w2;
+      v0 = v0 <= 0 ? 0 : (v0 >= 1 ? 1 : v0); v1 = v1 <= 0 ? 0 : (v1 >= 1 ? 1 : v1); v2 = v2 <= 0 ? 0 : (v2 >= 1 ? 1 : v2);
+      var o = 4 * i;
+      if (lut) { img[o] = lut[(v0 * 4096 + 0.5) | 0]; img[o + 1] = lut[(v1 * 4096 + 0.5) | 0]; img[o + 2] = lut[(v2 * 4096 + 0.5) | 0]; }
+      else { img[o] = Math.round(v0 * 255); img[o + 1] = Math.round(v1 * 255); img[o + 2] = Math.round(v2 * 255); }
+      img[o + 3] = 255;
+    }
+  };
+
+  /* ---------- full frame after geometry() ---------- */
+  Sim.prototype.render = function (P, opts) {
+    opts = opts || {};
+    var t0 = now(), cam = this.cameraModel(P);
+    this.viewVectors(P, cam);
+    var srcs = this.sources(P);
+    this.radiance(P, srcs);
+    var t1 = now();
+    this.optics(P);
+    this.project(P, cam);
+    this.resample(this.Lt, P);
+    var t2 = now();
+    this.cameraOptics(P, cam);
+    if (opts.measure) { this.timing = [t1 - t0, t2 - t1, now() - t2]; return this.measure(); }
+    this.sensor(P, cam, opts.seed || 1, opts.expo || { k: 1 });
+    this.timing = [t1 - t0, t2 - t1, now() - t2];
+    this.sources_ = srcs;
+    return null;
+  };
+  function now() { return (typeof performance !== 'undefined' ? performance.now() : Date.now()); }
+
+  /* =====================================================================
+     Export helpers: .npy, CRC-32, ZIP (stored, no compression)
+     ===================================================================== */
+  function f32to16(val) {
+    var f = new Float32Array(1), u = new Uint32Array(f.buffer); f[0] = val;
+    var x = u[0], sign = (x >>> 16) & 0x8000, e = ((x >>> 23) & 0xff) - 127 + 15, m = x & 0x7fffff;
+    if (e <= 0) { if (e < -10) return sign; m = (m | 0x800000) >> (1 - e); return sign | ((m + 0x1000) >> 13); }
+    if (e >= 31) return sign | 0x7c00;
+    var r = sign | (e << 10) | ((m + 0x1000) >> 13);
+    return r;
+  }
+  function npy(arr, shape, dtype) {
+    dtype = dtype || (arr instanceof Uint8Array ? '|u1' : '<f4');
+    var body;
+    if (dtype === '<f2') { var h = new Uint16Array(arr.length); for (var i = 0; i < arr.length; i++) h[i] = f32to16(arr[i]); body = new Uint8Array(h.buffer); }
+    else body = new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength);
+    var hdr = "{'descr': '" + dtype + "', 'fortran_order': False, 'shape': (" + shape.join(', ') + (shape.length === 1 ? ',' : '') + "), }";
+    var total = 10 + hdr.length + 1, pad = (64 - total % 64) % 64;
+    hdr += new Array(pad + 1).join(' ') + '\n';
+    var out = new Uint8Array(10 + hdr.length + body.length);
+    out.set([0x93, 0x4E, 0x55, 0x4D, 0x50, 0x59, 1, 0, hdr.length & 255, hdr.length >> 8], 0);
+    for (var k = 0; k < hdr.length; k++) out[10 + k] = hdr.charCodeAt(k);
+    out.set(body, 10 + hdr.length);
+    return out;
+  }
+  var CRC_T = (function () { var t = new Uint32Array(256); for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(d) { var c = 0xFFFFFFFF; for (var i = 0; i < d.length; i++) c = CRC_T[(c ^ d[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  function utf8(s) { if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(s); return Buffer.from(s, 'utf8'); }
+  /* Returns an array of Uint8Array parts forming a ZIP archive (store method). */
+  function ZipWriter() { this.parts = []; this.central = []; this.offset = 0; this.count = 0; }
+  ZipWriter.prototype.add = function (name, data) {
+    if (typeof data === 'string') data = utf8(data);
+    var nm = utf8(name), crc = crc32(data), sz = data.length;
+    var lh = new Uint8Array(30 + nm.length), dv = new DataView(lh.buffer);
+    dv.setUint32(0, 0x04034b50, true); dv.setUint16(4, 20, true); dv.setUint16(6, 0x0800, true); dv.setUint16(8, 0, true);
+    dv.setUint16(10, 0, true); dv.setUint16(12, 0x21, true); dv.setUint32(14, crc, true); dv.setUint32(18, sz, true);
+    dv.setUint32(22, sz, true); dv.setUint16(26, nm.length, true); dv.setUint16(28, 0, true); lh.set(nm, 30);
+    var ch = new Uint8Array(46 + nm.length), cv = new DataView(ch.buffer);
+    cv.setUint32(0, 0x02014b50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true); cv.setUint16(8, 0x0800, true);
+    cv.setUint16(10, 0, true); cv.setUint16(12, 0, true); cv.setUint16(14, 0x21, true); cv.setUint32(16, crc, true);
+    cv.setUint32(20, sz, true); cv.setUint32(24, sz, true); cv.setUint16(28, nm.length, true);
+    cv.setUint32(42, this.offset, true); ch.set(nm, 46);
+    this.parts.push(lh, data); this.central.push(ch);
+    this.offset += lh.length + sz; this.count++;
+  };
+  ZipWriter.prototype.finish = function () {
+    var size = 0; this.central.forEach(function (c) { size += c.length; });
+    var end = new Uint8Array(22), dv = new DataView(end.buffer);
+    dv.setUint32(0, 0x06054b50, true); dv.setUint16(8, this.count, true); dv.setUint16(10, this.count, true);
+    dv.setUint32(12, size, true); dv.setUint32(16, this.offset, true);
+    return this.parts.concat(this.central, [end]);
+  };
+
+  return {
+    clamp: clamp, sstep: sstep, mulberry32: mulberry32, gaussianRng: gaussianRng, BIG: BIG,
+    npy: npy, crc32: crc32, ZipWriter: ZipWriter, f32to16: f32to16, now: now,
+    FFT2: FFT2, blur: blur, gaussKernel: gaussKernel, bsplinePrefilter1D: bsplinePrefilter1D, bsplineWeights: bsplineWeights,
+    ledResponse: ledResponse, ledSpectrum: ledSpectrum, QE: QE, LAM0: LAM0, DLAM: DLAM, NLAM: NLAM,
+    _srcIrr: srcIrr, _brdf: brdf,
+    Indenter: Indenter, ContactSolver: ContactSolver, Gel: Gel, Sim: Sim, sampleBil: sampleBil, fresnelUnpol: fresnelUnpol
+  };
+})();
+
+
+</script>
+<script>
+/* =====================================================================
+   Parameters: defaults + UI schema.
+   flag: 'repo'  = taken from your Gelsight_controller repo
+         'lit'   = literature / datasheet-typical value
+         'guess' = reasonable guess, please replace with your sensor's value
+   ===================================================================== */
+var GSP = (function () {
+  'use strict';
+  function defaults() {
+    return {
+      sensor: { fovW: 24, tGel: 2.5, tAcr: 3.0 },
+      indenter: { shape: 'sphere', ballR: 5.5, depth: 1.0, rot: 0, text: 'R', force: 3.0 },
+      f1: { on: true, spec: true, shadow: true, rhoD: 0.70, ks: 0.25, alpha: 0.30 },
+      f2: { on: true, E: 0.20, nu: 0.49, plate: true, Ec: 1.0, tc: 0.03, hyper: false, visco: false, vr: 0.30, vtau: 1.5,
+            grid: 0.3, iters: 5, control: 'depth' },
+      f3: { on: true, falloff: true, spectral: true,
+            leds: [
+              { on: true, type: 'R', az: 0,   dist: 26, z: 9, tilt: 20, half: 50, I: 1.0, strip: 12, size: 3, peak: 630, fwhm: 18 },
+              { on: true, type: 'G', az: 90,  dist: 22, z: 9, tilt: 20, half: 50, I: 1.0, strip: 12, size: 3, peak: 525, fwhm: 32 },
+              { on: true, type: 'B', az: 180, dist: 26, z: 9, tilt: 20, half: 50, I: 1.0, strip: 12, size: 3, peak: 465, fwhm: 22 },
+              { on: true, type: 'W', az: 270, dist: 22, z: 9, tilt: 20, half: 50, I: 0.8, strip: 12, size: 3, peak: 565, fwhm: 115 }
+            ] },
+      f4: { on: true, absorb: true, mu: 0.01, haze: 0.06, glare: 0.03, glareSigma: 1.5, interrefl: true, kir: 1.0, irR: 0.6,
+            trap: true, trapLoss: 0.35, refract: true, nGel: 1.41, nAcr: 1.49 },
+      f5: { on: true, persp: true, Zc: 15, defocus: true, f: 2.0, N: 2.0, focus: 0, psf0: 0.5, vignette: true, vn: 2, vk: 0.10,
+            noise: true, fw: 6000, read: 3, gamma: true, g: 2.2, ae: 'bg', ev: 0, wb: 'off', wbR: 1, wbB: 1 },
+      f6: { on: true, mu: 1.0 }
+    };
+  }
+  /* UI rows. type: 'num' (slider+box), 'bool', 'select' */
+  var S = {
+    sensor: [
+      { k: 'fovW', label: '视场宽度', unit: 'mm', min: 10, max: 40, step: 0.5, flag: 'repo', note: '你的 calibrate_gelsight.py: Pixmm = 10/485×2 ≈ 0.041 mm/px，640 px ≈ 26 mm（含边缘）；取有效区约 24 mm。视场高 = 宽 × 3/4。' },
+      { k: 'tGel', label: '胶体厚度 t', unit: 'mm', min: 0.5, max: 6, step: 0.1, flag: 'guess' },
+      { k: 'tAcr', label: '亚克力厚度', unit: 'mm', min: 0.5, max: 8, step: 0.1, flag: 'guess' }
+    ],
+    f1: [
+      { k: 'spec', label: '镜面高光 (GGX)', type: 'bool' },
+      { k: 'shadow', label: '投射阴影 / 自遮挡', type: 'bool' },
+      { k: 'rhoD', label: '漫反射率 ρd', unit: '', min: 0, max: 1, step: 0.01, flag: 'guess', note: '铝粉/银粉半镜面涂层的典型值' },
+      { k: 'ks', label: '镜面权重 ks', unit: '', min: 0, max: 1, step: 0.01, flag: 'guess' },
+      { k: 'alpha', label: '粗糙度 α (GGX)', unit: '', min: 0.03, max: 1, step: 0.01, flag: 'guess', note: 'α 越小高光越尖锐；朗伯近似 ≈ ks=0' }
+    ],
+    f2: [
+      { k: 'E', label: '杨氏模量 E', unit: 'MPa', min: 0.02, max: 2, step: 0.01, flag: 'guess', note: '邵氏 00-30 ≈ 0.07 MPa，邵氏 A10–A20 ≈ 0.3–0.6 MPa。位移控制下 E 只改变力，不改变形状。' },
+      { k: 'nu', label: '泊松比 ν', unit: '', min: 0.3, max: 0.4999, step: 0.001, flag: 'lit', note: '硅胶近不可压，ν→0.5 时压痕体积全部转为周围鼓起' },
+      { k: 'plate', label: '涂层弯曲刚度 (细节抹平)', type: 'bool' },
+      { k: 'Ec', label: '涂层模量 Ec', unit: 'MPa', min: 0.1, max: 20, step: 0.1, flag: 'guess' },
+      { k: 'tc', label: '涂层厚度 tc', unit: 'mm', min: 0.005, max: 0.3, step: 0.005, flag: 'guess' },
+      { k: 'hyper', label: '超弹性刚化 (neo-Hookean, 只修正力)', type: 'bool' },
+      { k: 'visco', label: '粘弹性 (蠕变 / 迟滞)', type: 'bool' },
+      { k: 'vr', label: '松弛强度 r = E0/E∞ − 1', unit: '', min: 0, max: 2, step: 0.01, flag: 'guess' },
+      { k: 'vtau', label: '时间常数 τ', unit: 's', min: 0.1, max: 10, step: 0.1, flag: 'guess' },
+      { k: 'grid', label: '求解网格', type: 'select', options: [[0.3, '0.30 mm · 128² · 快'], [0.15, '0.15 mm · 256² · 精']] },
+      { k: 'iters', label: '每帧迭代上限', unit: '', min: 1, max: 40, step: 1, note: '交互时逐帧继续迭代直到收敛（渐进细化）' },
+      { k: 'control', label: '加载方式', type: 'select', options: [['depth', '压深控制'], ['force', '力控制']] }
+    ],
+    f3: [
+      { k: 'falloff', label: '点/条形光源：1/r² 衰减 + 发光角分布', type: 'bool' },
+      { k: 'spectral', label: 'LED 光谱 × 相机 RGB 响应 (串色)', type: 'bool' }
+    ],
+    f4: [
+      { k: 'absorb', label: '吸收 / 体散射 / 杂散光', type: 'bool' },
+      { k: 'mu', label: '衰减系数 μt', unit: '1/mm', min: 0, max: 0.2, step: 0.001, flag: 'guess' },
+      { k: 'haze', label: '体散射雾 (各向同性比例)', unit: '', min: 0, max: 0.5, step: 0.005, flag: 'guess' },
+      { k: 'glare', label: '成像杂散光比例', unit: '', min: 0, max: 0.3, step: 0.005, flag: 'guess' },
+      { k: 'glareSigma', label: '杂散光宽度 σ', unit: 'mm', min: 0.2, max: 6, step: 0.1, flag: 'guess' },
+      { k: 'interrefl', label: '涂层互反射 (一次反弹)', type: 'bool' },
+      { k: 'kir', label: '互反射强度', unit: '', min: 0, max: 3, step: 0.05, flag: 'guess' },
+      { k: 'irR', label: '互反射作用半径', unit: 'mm', min: 0.1, max: 3, step: 0.05, flag: 'guess' },
+      { k: 'trap', label: '全内反射光陷阱 (多次反弹)', type: 'bool' },
+      { k: 'trapLoss', label: '每次反弹损失', unit: '', min: 0, max: 1, step: 0.01, flag: 'guess', note: '侧壁吸收、底面划痕、出射；0 = 理想无损' },
+      { k: 'refract', label: '折射 (相机光线 + 亚克力底面全反射镜像光源)', type: 'bool' },
+      { k: 'nGel', label: '胶体折射率', unit: '', min: 1.3, max: 1.6, step: 0.005, flag: 'lit' },
+      { k: 'nAcr', label: '亚克力折射率', unit: '', min: 1.3, max: 1.7, step: 0.005, flag: 'lit' }
+    ],
+    f5: [
+      { k: 'persp', label: '透视投影 (形变的视差)', type: 'bool' },
+      { k: 'Zc', label: '相机到涂层距离', unit: 'mm', min: 5, max: 60, step: 0.5, flag: 'guess', note: '你的相机是鱼眼且很近；畸变已校正，这里只算形变点的视差' },
+      { k: 'defocus', label: '离焦模糊 (景深)', type: 'bool' },
+      { k: 'f', label: '焦距 f', unit: 'mm', min: 0.8, max: 8, step: 0.1, flag: 'guess' },
+      { k: 'N', label: '光圈 F 数', unit: '', min: 1, max: 16, step: 0.1, flag: 'guess' },
+      { k: 'focus', label: '对焦面偏移 (朝相机为正)', unit: 'mm', min: -2, max: 3, step: 0.05 },
+      { k: 'psf0', label: '镜头基础 PSF σ', unit: 'px', min: 0, max: 3, step: 0.05, flag: 'guess' },
+      { k: 'vignette', label: '暗角 (cos⁴ + 镜头渐晕)', type: 'bool' },
+      { k: 'vn', label: '暗角指数 n（cosⁿ 视场角）', unit: '', min: 0, max: 4, step: 0.1, flag: 'guess', note: '直线镜头 ≈ 4（cos⁴ 定律）；鱼眼 ≈ 1–2' },
+      { k: 'vk', label: '渐晕系数', unit: '', min: 0, max: 0.8, step: 0.01, flag: 'guess' },
+      { k: 'noise', label: '噪声 (散粒 + 读出) + 量化', type: 'bool' },
+      { k: 'fw', label: '满阱电子数', unit: 'e⁻', min: 500, max: 40000, step: 100, flag: 'guess' },
+      { k: 'read', label: '读出噪声', unit: 'e⁻', min: 0, max: 30, step: 0.5, flag: 'guess' },
+      { k: 'gamma', label: '伽马曲线', type: 'bool' },
+      { k: 'g', label: 'γ', unit: '', min: 1, max: 3, step: 0.05, flag: 'lit' },
+      { k: 'ae', label: '曝光', type: 'select', options: [['bg', '按无接触背景标定后锁定'], ['manual', '手动 EV（相对背景标定）'], ['auto', '连续自动曝光']] },
+      { k: 'ev', label: 'EV', unit: '', min: -3, max: 3, step: 0.1 },
+      { k: 'wb', label: '白平衡', type: 'select', options: [['off', '关 (增益 = 1)'], ['gray', '灰世界 (背景锁定)'], ['manual', '手动 R/B 增益']] },
+      { k: 'wbR', label: 'R 增益', unit: '', min: 0.3, max: 3, step: 0.01 },
+      { k: 'wbB', label: 'B 增益', unit: '', min: 0.3, max: 3, step: 0.01 }
+    ],
+    f6: [
+      { k: 'mu', label: '摩擦系数 μ', unit: '', min: 0.1, max: 3, step: 0.05, flag: 'guess', note: '硅胶表面通常 0.8–2' }
+    ]
+  };
+  var LED_COLS = [
+    { k: 'type', label: '颜色', type: 'select', options: [['R', 'R'], ['G', 'G'], ['B', 'B'], ['W', 'W']] },
+    { k: 'az', label: '方位°', min: -180, max: 360, step: 1, flag: 'repo' },
+    { k: 'dist', label: '距中心', unit: 'mm', min: 5, max: 40, step: 0.5, flag: 'guess' },
+    { k: 'z', label: '高度', unit: 'mm', min: 0.2, max: 15, step: 0.1, flag: 'guess' },
+    { k: 'tilt', label: '仰角°', min: -30, max: 60, step: 1, flag: 'guess' },
+    { k: 'half', label: '半功率角°', min: 10, max: 85, step: 1, flag: 'guess' },
+    { k: 'I', label: '强度', min: 0, max: 3, step: 0.05, flag: 'guess' },
+    { k: 'strip', label: '条宽', unit: 'mm', min: 0, max: 20, step: 0.5, flag: 'guess' },
+    { k: 'size', label: '发光尺寸', unit: 'mm', min: 0.2, max: 6, step: 0.1, flag: 'guess' },
+    { k: 'peak', label: '峰值 nm', min: 400, max: 700, step: 1, flag: 'lit' },
+    { k: 'fwhm', label: 'FWHM nm', min: 5, max: 150, step: 1, flag: 'lit' }
+  ];
+  return { defaults: defaults, schema: S, ledCols: LED_COLS };
+})();
+
+
+</script>
+<script>
+(function () {
+  'use strict';
+  function $(s) { return document.querySelector(s); }
+  function el(tag, attrs, html) {
+    var e = document.createElement(tag);
+    if (attrs) for (var k in attrs) { if (k === 'class') e.className = attrs[k]; else e.setAttribute(k, attrs[k]); }
+    if (html != null) e.innerHTML = html;
+    return e;
+  }
+  function getK(path) { var a = path.split('.'), o = P; for (var i = 0; i < a.length - 1; i++) o = o[a[i]]; return o[a[a.length - 1]]; }
+  function setK(path, v) { var a = path.split('.'), o = P; for (var i = 0; i < a.length - 1; i++) o = o[a[i]]; o[a[a.length - 1]] = v; }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+  var STAGE = 2;
+  var P = GSP.defaults();
+  var W = 320, H = 240, TOL = 1e-4;
+  var sim = new GS.Sim(W, H), bgSim = new GS.Sim(W, H);
+  var FONT = getComputedStyle(document.documentElement).getPropertyValue('--font') || 'sans-serif';
+
+  /* ---------- letter stamp raster (canvas text) ---------- */
+  GS.Indenter.letterMask = function (text, n) {
+    var out = new Float32Array(n * n), t = (text || '').trim();
+    if (!t) return out;
+    var c = document.createElement('canvas'); c.width = c.height = n;
+    var g = c.getContext('2d');
+    g.fillStyle = '#000'; g.fillRect(0, 0, n, n); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+    var size = n; g.font = '700 ' + size + 'px ' + FONT;
+    var m = g.measureText(t);
+    var bw = (m.actualBoundingBoxLeft || 0) + (m.actualBoundingBoxRight || m.width), bh = (m.actualBoundingBoxAscent || size * 0.72) + (m.actualBoundingBoxDescent || 0);
+    size *= Math.min(0.78 * n / Math.max(bw, 1), 0.78 * n / Math.max(bh, 1));
+    g.font = '700 ' + size.toFixed(1) + 'px ' + FONT; m = g.measureText(t);
+    var l = m.actualBoundingBoxLeft || m.width / 2, r = m.actualBoundingBoxRight || m.width / 2;
+    var as = m.actualBoundingBoxAscent || size * 0.72, ds = m.actualBoundingBoxDescent || 0;
+    g.fillText(t, n / 2 + (l - r) / 2, n / 2 + (as - ds) / 2);
+    var d = g.getImageData(0, 0, n, n).data, tmp = new Float32Array(n * n);
+    for (var i = 0; i < n * n; i++) out[i] = d[4 * i] / 255;
+    GS.blur(out, out, n, n, 2.5, tmp);      // ~0.05 mm edge bevel
+    return out;
+  };
+
+  /* ---------- model notes ---------- */
+  var NOTES = {
+    sensor: '<p>坐标：x 向右、y 向下（与图像行列一致），z 从涂层指向相机。高度 u = 涂层朝相机方向的位移，压入为正、鼓起为负。仿真分辨率 320×240（导出可选 640×480）。</p>',
+    f1: '<p><b>模型</b>：涂层内表面（相机一侧）BRDF = 朗伯漫反射 ρd/π ＋ 微面元镜面 ks·D·V（GGX/Trowbridge–Reitz 法线分布，高度相关 Smith 遮蔽–阴影项，粗糙度 α）。</p>' +
+      '<p><b>阴影 / 自遮挡</b>：① 附着阴影：n·l ≤ 0 时为 0；② 微观遮蔽：Smith 项；③ 宏观投射阴影：对高度场沿"形变质心 → 光源"方向做地平线扫描（每个光源一次），按光源发光尺寸给出软半影。</p>' +
+      '<p><b>简化</b>：ks 不随角度变化（不含菲涅耳）；不考虑涂层次表面散射、金属片取向的各向异性；投射阴影对每个点光源只用一个方向（形变区附近误差很小）；条形光源的镜面方向用能量加权平均方向；相机视线被陡壁遮挡在近正视下忽略。</p>' +
+      '<p><b>关闭时</b>：纯朗伯、无投射阴影（只保留 n·l 截断）。</p>',
+    f2: '<p><b>模型</b>：胶体 = 粘在刚性亚克力上的线弹性薄层（厚 t、E、ν），上表面与压头无摩擦接触。表面法向柔度用薄层解析解（Fourier 域）：</p>' +
+      '<p style="font-family:var(--mono);font-size:12px">C(k) = 2(1−ν²)/(E·k) · (κ·sinh2η − 2η) / (κ·cosh2η + 2η² + (1+κ²)/2)，η = k·t，κ = 3 − 4ν</p>' +
+      '<p>在 FFT 网格上用 Polonsky–Keer 共轭梯度法解接触（p ≥ 0、间隙 ≥ 0、互补），所以接触边缘过渡区、周围下陷与鼓起（ν→0.5 时体积守恒）都是解出来的。</p>' +
+      '<ul><li><b>涂层</b>：薄板弯曲刚度 D = Ec·tc³/12(1−ν²) 并入柔度（1/C + D·k⁴）；细网格上再按同一截止波数做高斯低通，即"细节被涂层抹平"。</li>' +
+      '<li><b>细节</b>：求解网格（0.3 mm）的位移经三次 B 样条上采样，与细网格上的压头形状取 max（胶不能穿透压头）；比网格窄的凹槽会被"架桥"，不完全贴合。</li>' +
+      '<li><b>超弹性（可选）</b>：neo-Hookean 压缩刚化因子 S(λ) = (λ − λ⁻²)/(3(λ − 1))，λ = 1 − u/t，<b>只修正力</b>。位移控制下表面形状仍是线性解——这是最大的简化，真正的大变形形状需要 FEM。力控制模式下它会改变压深，从而间接改变图像。</li>' +
+      '<li><b>粘弹性（可选）</b>：标准线性固体，蠕变柔度 J(t) = J₀[1 + r(1 − e^(−t/τ))]，延迟部分与瞬时部分共用同一空间核。保持压深时力松弛到 1/(1+r)；抬起后压痕按 τ 指数消退（迟滞）。</li></ul>' +
+      '<p><b>验证</b>：厚层极限与 Hertz 一致（峰值压力相同，接触半径差 2–4%）；ν = 0.5 薄层在 a/t ≈ 40 时与渐近解 F = (2π/3)·E·R²·δ³/t³ 差 1%；粘弹性松弛终值 = 1/(1+r)。</p>' +
+      '<p><b>简化</b>：周期边界（窗口 38.4 mm，远大于胶厚，边缘误差 &lt;0.1%）；无摩擦（剪切见 ⑥）；涂层低通是对"位移已给定"情形的近似。</p>' +
+      '<p><b>关闭时</b>：表面 = 压头形状本身（max(0, 压入量)），无过渡区，不计算力。</p>',
+    f3: '<p><b>模型</b>：每颗 LED 是"在胶体中看到的等效位置"上的点光源；条宽 &gt; 0 时沿边方向等分 3 个子光源（光导/条形灯）。辐照度 = Φ·cos^m(ψ)/r²·(n·l)，m 由半功率角求得。Φ 归一化为"视场中心平面辐照度 = 设定强度"，所以开关衰减不会改变中心亮度。</p>' +
+      '<p><b>光谱串色</b>：LED 光谱用高斯（白光 = 450 nm 蓝光芯片 + 565 nm 宽带荧光粉），相机 R/G/B 量子效率用典型 Bayer CMOS 的高斯近似（含 655 nm 红外截止），积分得到下面的混合矩阵（每列按该 LED 最强通道归一化）。涂层反射谱视为平坦（中性灰/银）。</p>' +
+      '<p><b>简化</b>：不追踪光导内部的真实光路（用等效位置折算）；LED 之间无差异；相机 QE 不是你的相机实测。</p>' +
+      '<p><b>关闭时</b>：方向光（方向 = 视场中心指向 LED），无衰减，每颗 LED 只进入名义通道（白光进入全部通道）。</p>' +
+      '<p><b>默认布局</b>：按你仓库 cam1 标定图推断——右 = 红、上 = 绿、左 = 蓝、下 = 白（球压痕四周颜色与背景渐变方向一致）。距离、高度按你真实背景的不均匀度（近边/中心 ≈ 1.4，线性）粗调；其余都是猜测。</p>',
+    f4: '<p><b>模型</b>（在胶体表面网格上，叠加到直射辐亮度上）：</p><ul>' +
+      '<li><b>吸收 / 体散射</b>：LED 到表面的光按 Beer–Lambert e^(−μt·r) 衰减；被散射的部分当作各向同性"雾光"，每颗 LED 加 (ρd/π)·h·Es，并在约 2 mm 内平滑（不产生阴影，降低对比）。成像杂散光：图像 = (1−g)·I + g·模糊(I, σ)。</li>' +
+      '<li><b>涂层互反射</b>：一次反弹近似。某点被周围更靠近相机的涂层包围（凹处）时，会收到邻近涂层反射来的光：L += ρd·k·cav·模糊_R(L)，cav = clamp((模糊_R(u) − u)/R, 0, 1)。</li>' +
+      '<li><b>全内反射光陷阱</b>：涂层漫反射光里，出射角超出胶体逃逸锥（sinθ &gt; 1/n）的比例 1 − 1/n² ≈ 50%，会在亚克力/空气界面全反射回涂层，横向走出约 2T·tanθ（T = 胶厚 + 亚克力厚）。每次反弹回授 g = ρd(1 − 1/n²)(1 − 损失)，多次反弹总增益 g/(1−g)，空间上用 σ = 1.5T 与 4T 两个高斯近似。真实图像背景发白、颜色偏淡，主要就来自这一项。</li>' +
+      '<li><b>折射</b>：① 相机光线经 空气→亚克力→胶体 按 Snell 定律弯折：同样的压入深度，视差比不考虑折射时小；镜面高光用的视线方向随之改变；斜出射光线的菲涅耳透射率随视场角下降（需开启 ⑤ 透视）。② LED 在光导内部（高度 &lt; 胶厚 + 亚克力厚）时，亚克力底面的全反射用镜像光源表示（入射角小于临界角时按菲涅耳反射率），相当于多了一组更陡的光源。</li></ul>' +
+      '<p><b>简化</b>：互反射只算一次，可见立体角用凹度近似；光陷阱的核是平移不变的，视场边缘侧壁的真实几何用"每次反弹损失"折算；胶体/亚克力界面对 LED 光的弯折忽略（折射率只差 0.08）；LED 在亚克力外面时不模拟入射面折射，请把它的位置理解为胶体中看到的等效位置。</p>',
+    f5: '<ul><li><b>透视视差</b>：针孔相机在涂层下方 Zc 处。你说几何畸变已校正，所以参考平面（未变形涂层）上像素与 mm 一一对应；但压入后更靠近相机的点会沿视线移向光轴：x_seen = x − tanθ_胶(r)·u。逐像素迭代求光线与高度场的交点，所以导出的真值图是"这个像素真正看到的点"。</li>' +
+      '<li><b>离焦</b>：薄透镜，物方弥散圆直径 b = A·|z − z_f|/z，A = f/N；深度用折射后的视深 u/n。按 σ = b/4 的高斯近似，再叠加镜头基础 PSF；空间变化的模糊用多级模糊插值实现。</li>' +
+      '<li><b>暗角</b>：自然渐晕 cos⁴(视场角) × (1 − k·r²)。</li>' +
+      '<li><b>噪声</b>：信号按满阱电子数换算，散粒噪声（泊松的高斯近似）+ 读出噪声，再量化到 8 位。每帧随机种子不同，批量导出时种子写进 meta。</li>' +
+      '<li><b>伽马</b>：v^(1/γ)。</li>' +
+      '<li><b>曝光 / 白平衡</b>：默认在无接触背景上标定（99 分位 = 0.85）后锁定，和真实传感器的固定曝光一样；也可以手动 EV 或连续自动曝光。白平衡可选灰世界（背景锁定）或手动。处理顺序：光学 → 曝光 → 噪声 → 白平衡 → 伽马 → 量化。</li></ul>' +
+      '<p><b>简化</b>：没有 Bayer 去马赛克和色彩校正矩阵；没有坏点、固定模式噪声、运动模糊、卷帘快门；离焦用高斯而不是圆盘，也不处理遮挡边缘。</p>' +
+      '<p><b>关闭时</b>：理想线性相机，正交投影，曝光按无接触背景锁定。</p>',
+    f6: '<p><b>模型</b>：拖动时，接触区下面的胶随压头一起切向位移（粘着），位移场 u_t(x) = w(x)·(D + φ×(x − c))，w 在粘着区内为 1（刚性平移），区外在约一个胶厚的距离上衰减。表面随之平移；对粘在底板上的不可压缩薄层，按厚度平均的连续性方程，表面再抬起或下沉 Δu = (t/2)·∇·u_t：压头前方堆起、后方下陷。</p>' +
+      '<p><b>粘–滑</b>：切向刚度 K_t = G·A_eff/t（G = E/2(1+ν)），扭转刚度 K_r = G·∫w·r²/t；|D| 超过 μF/K_t（或扭转超过 μF·r_eff/K_r）时压头相对胶体滑动，粘着位移停在极限上。</p>' +
+      '<p><b>简化</b>：切向与法向接触解耦（法向接触在"材料坐标"下求解，再整体平移）；没有局部微滑（Cattaneo–Mindlin 环）；切向柔度用均匀剪切近似；这是线性小变形模型，切向位移 |D| ≲ 0.3·t 时可信，再大就会高估堆起，所以粘着位移另设上限 0.5·t（超过即按滑动处理）。在纯颜色传感器上，它的效果主要是压痕轻微拖尾和前后不对称。</p><p><b>关闭时</b>：拖动只是把压头移到新位置重新求解。</p>'
+  };
+  var TITLES = {
+    f1: ['① 涂层反射', 'BRDF + 阴影 / 自遮挡'], f2: ['② 胶体变形', '薄层弹性接触 · 涂层 · 超弹 · 粘弹'],
+    f3: ['③ 照明', 'LED 位置 · 1/r² · 光谱串色'], f4: ['④ 光在胶体内的传播', '散射 · 互反射 · 光陷阱 · 折射'],
+    f5: ['⑤ 相机', '视差 · 离焦 · 暗角 · 噪声 · 伽马 · AE/AWB'], f6: ['⑥ 摩擦与剪切', '粘–滑 · 切向变形'],
+    sensor: ['传感器几何', '']
+  };
+  var READY = { f1: true, f2: true, f3: true, f4: STAGE >= 2, f5: STAGE >= 2, f6: STAGE >= 2 };
+  var DEPS = { 'f2.Ec': 'f2.plate', 'f2.tc': 'f2.plate', 'f2.vr': 'f2.visco', 'f2.vtau': 'f2.visco',
+    'f4.mu': 'f4.absorb', 'f4.haze': 'f4.absorb', 'f4.glare': 'f4.absorb', 'f4.glareSigma': 'f4.absorb',
+    'f4.kir': 'f4.interrefl', 'f4.irR': 'f4.interrefl', 'f4.trapLoss': 'f4.trap', 'f4.nGel': 'f4.refract', 'f4.nAcr': 'f4.refract',
+    'f5.Zc': 'f5.persp', 'f5.f': 'f5.defocus', 'f5.N': 'f5.defocus', 'f5.focus': 'f5.defocus', 'f5.psf0': 'f5.defocus',
+    'f5.vk': 'f5.vignette', 'f5.vn': 'f5.vignette', 'f5.fw': 'f5.noise', 'f5.read': 'f5.noise', 'f5.g': 'f5.gamma',
+    'f5.ev': ['f5.ae', 'manual'], 'f5.wbR': ['f5.wb', 'manual'], 'f5.wbB': ['f5.wb', 'manual'] };
+  var FLAGTXT = { guess: '⚠', repo: '仓库', lit: '文献' };
+  var FLAGTIP = { guess: '合理默认值，未经你的传感器实测，请替换', repo: '取自你的 Gelsight_controller 仓库', lit: '典型文献 / 手册值' };
+
+  /* ---------- panel ---------- */
+  var refreshers = [];
+  function onParam() { paramsChanged(); refreshers.forEach(function (f) { f(); }); }
+  function flagEl(spec) {
+    if (!spec.flag) return null;
+    var f = el('span', { class: 'flag ' + spec.flag, title: FLAGTIP[spec.flag] + (spec.note ? '\n' + spec.note : '') }, FLAGTXT[spec.flag]);
+    return f;
+  }
+  function makeRow(group, spec, host) {
+    var path = group + '.' + spec.k, row;
+    if (spec.type === 'bool') {
+      row = el('label', { class: 'prow bool' });
+      var cb = el('input', { type: 'checkbox' }); cb.checked = !!getK(path);
+      cb.addEventListener('change', function () { setK(path, cb.checked); onParam(); });
+      row.appendChild(cb); var sp = el('span', { class: 'lbl' }, spec.label); row.appendChild(sp);
+      refreshers.push(function () { cb.checked = !!getK(path); });
+    } else if (spec.type === 'select') {
+      row = el('div', { class: 'prow' });
+      var lb = el('span', { class: 'lbl' }, spec.label); row.appendChild(lb);
+      var sel = el('select');
+      spec.options.forEach(function (o) { var op = el('option', { value: String(o[0]) }, o[1]); sel.appendChild(op); });
+      sel.value = String(getK(path));
+      sel.addEventListener('change', function () { var v = sel.value, num = parseFloat(v); setK(path, isNaN(num) || String(num) !== v ? v : num); onParam(); });
+      row.appendChild(sel);
+      refreshers.push(function () { sel.value = String(getK(path)); });
+    } else {
+      row = el('div', { class: 'prow' });
+      var l2 = el('span', { class: 'lbl' }, spec.label); var fl = flagEl(spec); if (fl) l2.appendChild(fl);
+      if (spec.note && !spec.flag) l2.title = spec.note;
+      row.appendChild(l2);
+      var rg = el('input', { type: 'range', min: spec.min, max: spec.max, step: spec.step });
+      var nb = el('input', { type: 'number', min: spec.min, max: spec.max, step: spec.step });
+      rg.value = nb.value = getK(path);
+      rg.addEventListener('input', function () { nb.value = rg.value; setK(path, parseFloat(rg.value)); onParam(); });
+      nb.addEventListener('change', function () { var v = parseFloat(nb.value); if (isNaN(v)) return; rg.value = v; setK(path, v); onParam(); });
+      row.appendChild(rg); row.appendChild(nb); row.appendChild(el('span', { class: 'unit' }, spec.unit || ''));
+      refreshers.push(function () { var v = getK(path); if (parseFloat(nb.value) !== v) { nb.value = v; rg.value = v; } });
+    }
+    var dep = DEPS[path];
+    if (dep) {
+      row.classList.add('sub');
+      var inputs = row.querySelectorAll('input,select');
+      refreshers.push(function () {
+        var on = Array.isArray(dep) ? getK(dep[0]) === dep[1] : !!getK(dep);
+        for (var i = 0; i < inputs.length; i++) inputs[i].disabled = !on;
+        row.style.opacity = on ? '' : '0.5';
+      });
+    }
+    host.appendChild(row);
+  }
+  var factorSecs = {};
+  function buildFactor(id) {
+    var sec = el('section', { class: 'factor', 'data-f': id });
+    var hd = el('header');
+    if (id !== 'sensor') {
+      var sw = el('label', { class: 'switch', title: '开 / 关此因素' });
+      var cb = el('input', { type: 'checkbox', 'aria-label': TITLES[id][0] });
+      cb.checked = !!P[id].on; cb.disabled = !READY[id];
+      cb.addEventListener('change', function () { P[id].on = cb.checked; onParam(); });
+      sw.appendChild(cb); sw.appendChild(el('span')); hd.appendChild(sw);
+      refreshers.push(function () { cb.checked = !!P[id].on; sec.classList.toggle('off', !P[id].on); });
+    }
+    hd.appendChild(el('h2', null, TITLES[id][0] + (TITLES[id][1] ? '<small>' + TITLES[id][1] + '</small>' : '')));
+    sec.appendChild(hd);
+    var body = el('div', { class: 'body' });
+    var det = el('details', { class: 'note' }); det.appendChild(el('summary', null, READY[id] ? '模型与简化' : '计划')); det.appendChild(el('div', null, NOTES[id]));
+    if (!READY[id]) det.open = true;
+    body.appendChild(det);
+    if (READY[id] || id === 'sensor') GSP.schema[id].forEach(function (spec) { makeRow(id, spec, body); });
+    if (id === 'f3') buildLEDs(body);
+    sec.appendChild(body);
+    factorSecs[id] = sec;
+    return sec;
+  }
+  function buildLEDs(host) {
+    host.appendChild(el('div', { class: 'msg', style: 'margin-top:8px' }, 'LED（等效位置：方位角 0° = 右、90° = 上；距离 = 到视场中心的水平距离；高度 = 涂层下方朝相机方向的距离；仰角 = 发光轴朝涂层抬起的角度）'));
+    var wrapT = el('div', { class: 'led-scroll' }), tb = el('table', { class: 'leds' });
+    var thead = '<tr><th>开</th>' + GSP.ledCols.map(function (c) {
+      return '<th>' + c.label + (c.unit ? ' ' + c.unit : '') + (c.flag ? ' <span class="flag ' + c.flag + '" title="' + FLAGTIP[c.flag] + '">' + FLAGTXT[c.flag] + '</span>' : '') + '</th>';
+    }).join('') + '</tr>';
+    tb.innerHTML = '<thead>' + thead + '</thead>';
+    var tbody = el('tbody'); tb.appendChild(tbody);
+    function render() {
+      tbody.innerHTML = '';
+      P.f3.leds.forEach(function (L, idx) {
+        var tr = el('tr'), td = el('td'), cb = el('input', { type: 'checkbox' }); cb.checked = L.on;
+        cb.addEventListener('change', function () { L.on = cb.checked; onParam(); }); td.appendChild(cb); tr.appendChild(td);
+        GSP.ledCols.forEach(function (c) {
+          var t = el('td'), inp;
+          if (c.type === 'select') {
+            inp = el('select'); c.options.forEach(function (o) { inp.appendChild(el('option', { value: o[0] }, o[1])); }); inp.value = L[c.k];
+            inp.addEventListener('change', function () { L[c.k] = inp.value; onParam(); });
+          } else {
+            inp = el('input', { type: 'number', min: c.min, max: c.max, step: c.step }); inp.value = L[c.k];
+            if ((c.k === 'peak' || c.k === 'fwhm') && L.type === 'W') inp.disabled = true;
+            inp.addEventListener('change', function () { var v = parseFloat(inp.value); if (!isNaN(v)) { L[c.k] = v; onParam(); } });
+          }
+          t.appendChild(inp); tr.appendChild(t);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+    render();
+    wrapT.appendChild(tb); host.appendChild(wrapT);
+    var bar = el('div', { class: 'row' });
+    var add = el('button', { class: 'btn' }, '+ LED'), del = el('button', { class: 'btn' }, '− 最后一颗');
+    add.addEventListener('click', function () { if (P.f3.leds.length >= 8) return; var L = clone(P.f3.leds[P.f3.leds.length - 1] || GSP.defaults().f3.leds[0]); L.az = (L.az + 45) % 360; P.f3.leds.push(L); render(); onParam(); });
+    del.addEventListener('click', function () { if (P.f3.leds.length <= 1) return; P.f3.leds.pop(); render(); onParam(); });
+    bar.appendChild(add); bar.appendChild(del); host.appendChild(bar);
+    var mixWrap = el('div', { style: 'margin-top:8px' });
+    host.appendChild(mixWrap);
+    refreshers.push(function () {
+      var on = P.f3.on && P.f3.spectral, rows = ['R', 'G', 'B'];
+      var h = '<div class="msg">相机响应混合矩阵（每列一颗 LED；' + (on ? '光谱串色已开启' : '串色关闭：名义通道') + '）</div><table class="mix"><tr><th></th>';
+      var resp = P.f3.leds.map(function (L) { return GS.ledResponse(L, on); });
+      P.f3.leds.forEach(function (L, i) { h += '<th>' + L.type + (i + 1) + '</th>'; });
+      h += '</tr>';
+      rows.forEach(function (r, c) { h += '<tr><th>相机 ' + r + '</th>' + resp.map(function (v) { return '<td>' + (v[c] * 100).toFixed(0) + '%</td>'; }).join('') + '</tr>'; });
+      mixWrap.innerHTML = h + '</table>';
+    });
+  }
+  function buildPanel() {
+    var panel = $('#panel');
+    ['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'sensor'].forEach(function (id) { panel.appendChild(buildFactor(id)); });
+    panel.appendChild(buildExport());
+  }
+
+  /* ---------- top chips: quick toggles + presets ---------- */
+  function buildChips() {
+    var host = $('#chips');
+    ['f1', 'f2', 'f3', 'f4', 'f5', 'f6'].forEach(function (id) {
+      var b = el('button', { class: 'chip', 'aria-pressed': String(!!P[id].on), title: TITLES[id][0] + ' 开 / 关' }, TITLES[id][0]);
+      b.disabled = !READY[id];
+      b.addEventListener('click', function () { P[id].on = !P[id].on; onParam(); });
+      refreshers.push(function () { b.setAttribute('aria-pressed', String(!!P[id].on)); });
+      host.appendChild(b);
+    });
+    [['理想（全关）', function () { ['f1', 'f2', 'f3', 'f4', 'f5', 'f6'].forEach(function (id) { P[id].on = false; }); }],
+     ['全开', function () { ['f1', 'f2', 'f3', 'f4', 'f5', 'f6'].forEach(function (id) { if (READY[id]) P[id].on = true; }); }],
+     ['恢复默认参数', function () { var ind = P.indenter; P = GSP.defaults(); P.indenter = ind; rebuildPanel(); }]].forEach(function (p) {
+      var b = el('button', { class: 'chip preset' }, p[0]);
+      b.addEventListener('click', function () { p[1](); onParam(); });
+      host.appendChild(b);
+    });
+  }
+  function rebuildPanel() {
+    refreshers = [];
+    $('#chips').innerHTML = ''; buildChips();
+    var panel = $('#panel'); var legend = panel.firstElementChild; panel.innerHTML = ''; panel.appendChild(legend);
+    buildPanel(); buildIndenterKV();
+    refreshers.forEach(function (f) { f(); });
+  }
+
+  /* ---------- indenter controls ---------- */
+  var shapeBtns = Array.prototype.slice.call(document.querySelectorAll('.shape'));
+  var letterIn = $('#letter');
+  shapeBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      P.indenter.shape = b.dataset.shape;
+      shapeBtns.forEach(function (o) { o.setAttribute('aria-checked', String(o === b)); });
+      letterIn.hidden = P.indenter.shape !== 'letter';
+      buildIndenterKV(); geomChanged();
+    });
+  });
+  letterIn.addEventListener('input', function () { P.indenter.text = letterIn.value; geomChanged(); });
+  function buildIndenterKV() {
+    var host = $('#indKV'); host.innerHTML = '';
+    var rows = [];
+    if (P.indenter.shape === 'sphere') rows.push(['ballR', '球半径', 1, 10, 0.1, 'mm', 'repo', '你的 calibrate_gelsight.py：BallRad = 11/2 mm']);
+    if (P.f2.on && P.f2.control === 'force') rows.push(['force', '目标法向力', 0.05, 20, 0.05, 'N']);
+    else rows.push(['depth', '压入深度 δ', 0.05, 2.5, 0.01, 'mm']);
+    if (P.indenter.shape !== 'sphere') rows.push(['rot', '旋转', -180, 180, 1, '°']);
+    rows.forEach(function (r) {
+      var lab = el('label', null, r[1]);
+      if (r[6]) lab.appendChild(document.createTextNode(' ')), lab.appendChild(el('span', { class: 'flag ' + r[6], title: r[7] }, FLAGTXT[r[6]]));
+      var rg = el('input', { type: 'range', min: r[2], max: r[3], step: r[4] }); rg.value = P.indenter[r[0]];
+      var out = el('output', null, (+P.indenter[r[0]]).toFixed(r[4] < 0.1 ? 2 : (r[4] < 1 ? 1 : 0)) + ' ' + r[5]);
+      rg.addEventListener('input', function () {
+        P.indenter[r[0]] = parseFloat(rg.value);
+        out.textContent = (+rg.value).toFixed(r[4] < 0.1 ? 2 : (r[4] < 1 ? 1 : 0)) + ' ' + r[5];
+        geomChanged();
+      });
+      host.appendChild(lab); host.appendChild(rg); host.appendChild(out);
+      refreshers.push(function () { if (parseFloat(rg.value) !== P.indenter[r[0]]) { rg.value = P.indenter[r[0]]; rg.dispatchEvent(new Event('input')); } });
+    });
+  }
+
+  /* ---------- state & main loop ---------- */
+  var st = { pressed: false, holding: true, d: 0, x: 0, y: 0, ax: 0, ay: 0, rotA: 0, slipT: -1e9, dCmd: P.indenter.depth, view: 'cam', ab: 'off', split: 0.5, lastPress: 0 };
+  var shearOut = { Ft: 0, T: 0, slip: false };
+  var raf = 0, lastT = 0, geomKey = '', renderKey = '', geomVersion = 0, paramVersion = 0, frameSeed = 1;
+  var expo = { k: 1 }, bgKey = '', drawDirty = true, timing = { geom: 0, light: 0, proj: 0, cam: 0 }, fps = 0;
+  function request() { if (!raf) raf = requestAnimationFrame(frame); }
+  function paramsChanged() { paramVersion++; if (P.f2.control === 'force' && !P.f2.on) {} buildIndenterKVIfNeeded(); request(); }
+  var lastCtl = '';
+  function buildIndenterKVIfNeeded() { var c = P.f2.on + P.f2.control + P.indenter.shape; if (c !== lastCtl) { lastCtl = c; buildIndenterKV(); } }
+  function geomChanged() { paramVersion++; request(); }
+  function bgKeyOf() { return JSON.stringify([P.sensor, P.f1, P.f3, P.f4, P.f5]); }
+  function renderBackground() {
+    bgSim.flat();
+    var ms = bgSim.render(P, { measure: true });
+    expo = { k: 0.85 / Math.max(ms.p99, 1e-12), p99: ms.p99, wb: [ms.mean[1] / Math.max(ms.mean[0], 1e-12), 1, ms.mean[1] / Math.max(ms.mean[2], 1e-12)] };
+    bgSim.render(P, { expo: expo, seed: 777 });
+  }
+  function targetDepth() {
+    if (P.f2.on && P.f2.control === 'force') return st.dCmd;
+    return P.indenter.depth;
+  }
+  function frame(t) {
+    raf = 0;
+    var dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 1 / 60; lastT = t;
+    if (dt > 0) fps = fps ? fps * 0.9 + 0.1 / dt : 1 / dt;
+    var active = st.pressed || st.holding, goal = active ? targetDepth() : 0;
+    var ramping = Math.abs(st.d - goal) > 1e-4;
+    st.d += (goal - st.d) * (1 - Math.exp(-dt / (active ? 0.08 : 0.1)));
+    if (Math.abs(st.d - goal) < 1e-4) st.d = goal;
+    if (!active && st.d < 2e-3) st.d = 0;
+    // indenter stamp
+    sim.ind.build(P.indenter.shape, P.indenter.ballR, P.indenter.text);
+    var th = P.indenter.rot * Math.PI / 180;
+    var pose = { x: st.x, y: st.y, d: st.d, c: Math.cos(th), s: Math.sin(th) };
+    // factor 6: stick / slip of the gel under the indenter
+    var matPose = null, shear = null, f6 = P.f6.on && P.f2.on && active && st.d > 0.01;
+    if (f6) {
+      var G = P.f2.E / (2 * (1 + P.f2.nu)), tg = P.sensor.tGel, si = sim.shearInfo, Fn = sim.gel.stats.F;
+      var Kt = si && si.Aeff > 0 ? G * si.Aeff / tg : 1e9, Kr = si && si.Ir2 > 0 ? G * si.Ir2 / tg : 1e9;
+      var Dx = st.x - st.ax, Dy = st.y - st.ay, Dm = Math.hypot(Dx, Dy), Dmax = Math.min(P.f6.mu * Fn / Kt, 0.5 * tg);
+      if (Dm > Dmax) { var kk = Dmax / Dm; st.ax = st.x - Dx * kk; st.ay = st.y - Dy * kk; Dx *= kk; Dy *= kk; st.slipT = t; }
+      var phi = (P.indenter.rot - st.rotA) * Math.PI / 180, reff = (2 / 3) * Math.sqrt(Math.max(sim.gel.stats.A, 1e-6) / Math.PI);
+      var phiMax = P.f6.mu * Fn * reff / Kr;
+      if (Math.abs(phi) > phiMax) { phi = Math.sign(phi) * phiMax; st.rotA = P.indenter.rot - phi * 180 / Math.PI; st.slipT = t; }
+      var tha = st.rotA * Math.PI / 180;
+      matPose = { x: st.ax, y: st.ay, d: st.d, c: Math.cos(tha), s: Math.sin(tha) };
+      shear = { dx: Dx, dy: Dy, phi: phi, cx: st.ax, cy: st.ay };
+      shearOut.Ft = Kt < 1e8 ? Kt * Math.hypot(Dx, Dy) : 0; shearOut.T = Kr < 1e8 ? Kr * Math.abs(phi) : 0; shearOut.slip = t - st.slipT < 250;
+    } else { st.ax = st.x; st.ay = st.y; st.rotA = P.indenter.rot; shearOut.Ft = 0; shearOut.T = 0; shearOut.slip = false; }
+    var bk = bgKeyOf();
+    if (bk !== bgKey) { renderBackground(); bgKey = bk; renderKey = ''; }
+    var visco = P.f2.on && P.f2.visco, gk = JSON.stringify([pose, matPose, shear, P.f2, P.f6, P.sensor, P.indenter.shape, P.indenter.ballR, P.indenter.text]);
+    var needGeom = gk !== geomKey || (P.f2.on && sim.gel.stats.err > TOL) || (visco && (st.d > 0 || sim.gel.stats.umax > 2e-4));
+    if (needGeom) {
+      var t0 = performance.now();
+      sim.geometry(pose, P, dt, P.f2.iters, TOL, matPose, shear);
+      timing.geom = performance.now() - t0;
+      geomKey = gk; geomVersion++;
+      if (P.f2.on && P.f2.control === 'force' && active && st.d > 0.01) {
+        var F = sim.gel.stats.F, Ft = P.indenter.force;
+        if (F > 1e-4) st.dCmd = GS.clamp(st.dCmd * Math.pow(Ft / F, 0.45), 0.01, 3);
+        else st.dCmd = Math.min(3, st.dCmd * 1.3 + 0.01);
+      }
+    }
+    var rk = geomVersion + '|' + paramVersion;
+    if (rk !== renderKey) {
+      sim.render(P, { expo: expo, seed: ++frameSeed });
+      timing.light = sim.timing[0]; timing.proj = sim.timing[1]; timing.cam = sim.timing[2];
+      renderKey = rk; drawDirty = true;
+    }
+    if (drawDirty) { draw(); drawDirty = false; }
+    readouts();
+    var solving = P.f2.on && sim.gel.stats.err > TOL && st.d > 0;
+    var forceAdj = P.f2.on && P.f2.control === 'force' && active && Math.abs(sim.gel.stats.F - P.indenter.force) > 0.01 * P.indenter.force;
+    $('#busy').style.display = solving ? 'block' : 'none';
+    if (ramping || solving || forceAdj || (visco && (st.d > 0 || sim.gel.stats.umax > 2e-4)) || st.pressed || t - st.slipT < 300) request();
+    else lastT = 0;
+  }
+
+  /* ---------- drawing ---------- */
+  var cv = $('#view'), ctx = cv.getContext('2d'), wrap = $('#wrap');
+  var off = document.createElement('canvas'); off.width = W; off.height = H;
+  var offx = off.getContext('2d'), buf = offx.createImageData(W, H), dpr = 1;
+  var A = null;
+  function viridis(t) {
+    var c0 = [0.2777, 0.0054, 0.3341], c1 = [0.1051, 1.4046, 1.3846], c2 = [-0.3309, 0.2148, 0.0951], c3 = [-4.6342, -5.7991, -19.3324],
+      c4 = [6.2283, 14.1799, 56.6906], c5 = [4.7764, -13.7451, -65.3530], c6 = [-5.4355, 4.6459, 26.3124];
+    t = GS.clamp(t, 0, 1); var o = [];
+    for (var k = 0; k < 3; k++) o.push(GS.clamp(c0[k] + t * (c1[k] + t * (c2[k] + t * (c3[k] + t * (c4[k] + t * (c5[k] + t * c6[k]))))), 0, 1) * 255);
+    return o;
+  }
+  var LUT = new Uint8ClampedArray(768); for (var li = 0; li < 256; li++) { var vc = viridis(li / 255); LUT[3 * li] = vc[0]; LUT[3 * li + 1] = vc[1]; LUT[3 * li + 2] = vc[2]; }
+  function viewRGBA(view, src, out) {
+    var N = W * H, d = out, i, v;
+    if (view === 'cam') { d.set(src.img); return ''; }
+    if (view === 'diff') {
+      var b = bgSim.img, g = 3;
+      for (i = 0; i < 4 * N; i += 4) { d[i] = 128 + g * (src.img[i] - b[i]); d[i + 1] = 128 + g * (src.img[i + 1] - b[i + 1]); d[i + 2] = 128 + g * (src.img[i + 2] - b[i + 2]); d[i + 3] = 255; }
+      return '差分 = (当前 − 无接触背景) × 3 + 128，与 lookup table 方法的输入一致';
+    }
+    if (view === 'height') {
+      var mx = 1e-6, mn = 0; for (i = 0; i < N; i++) { if (src.HU[i] > mx) mx = src.HU[i]; if (src.HU[i] < mn) mn = src.HU[i]; }
+      var lo = Math.min(mn, -0.05 * mx), sc = 1 / (mx - lo);
+      for (i = 0; i < N; i++) { v = ((src.HU[i] - lo) * sc * 255) | 0; v = v < 0 ? 0 : (v > 255 ? 255 : v); d[4 * i] = LUT[3 * v]; d[4 * i + 1] = LUT[3 * v + 1]; d[4 * i + 2] = LUT[3 * v + 2]; d[4 * i + 3] = 255; }
+      return '高度 u（朝相机为正）：' + lo.toFixed(3) + ' … ' + mx.toFixed(3) + ' mm；最低处 = 周围鼓起 ' + mn.toFixed(3) + ' mm';
+    }
+    if (view === 'normal') {
+      for (i = 0; i < N; i++) { d[4 * i] = 127.5 * (src.HN[3 * i] + 1); d[4 * i + 1] = 127.5 * (src.HN[3 * i + 1] + 1); d[4 * i + 2] = 127.5 * (src.HN[3 * i + 2] + 1); d[4 * i + 3] = 255; }
+      return '法向 (nx, ny, nz) → RGB = (n + 1)/2；与图像像素逐点对齐';
+    }
+    if (view === 'pressure') {
+      var pm = 1e-9; for (i = 0; i < N; i++) if (src.HP[i] > pm) pm = src.HP[i];
+      for (i = 0; i < N; i++) { v = (src.HP[i] / pm * 255) | 0; d[4 * i] = LUT[3 * v]; d[4 * i + 1] = LUT[3 * v + 1]; d[4 * i + 2] = LUT[3 * v + 2]; d[4 * i + 3] = 255; }
+      return P.f2.on ? '接触压力：0 … ' + pm.toFixed(1) + ' kPa（求解网格分辨率）' : '需要开启 ② 胶体变形';
+    }
+    return '';
+  }
+  function snapshot() { return { img: sim.img.slice(), HU: sim.HU.slice(), HN: sim.HN.slice(), HP: sim.HP.slice() }; }
+  function draw() {
+    var r = wrap.getBoundingClientRect(); dpr = Math.min(2, window.devicePixelRatio || 1);
+    var cw = Math.max(1, Math.round(r.width * dpr)), ch = Math.max(1, Math.round(r.height * dpr));
+    if (cv.width !== cw || cv.height !== ch) { cv.width = cw; cv.height = ch; }
+    var d = buf.data, legend = viewRGBA(st.view, sim, d);
+    if (A && st.ab !== 'off') {
+      var tmp = new Uint8ClampedArray(d.length); viewRGBA(st.view, A, tmp);
+      if (st.ab === 'split') {
+        var xs = Math.round(st.split * W);
+        for (var j = 0; j < H; j++) for (var i = 0; i < xs; i++) { var o = 4 * (j * W + i); d[o] = tmp[o]; d[o + 1] = tmp[o + 1]; d[o + 2] = tmp[o + 2]; }
+      } else {
+        for (var k = 0; k < d.length; k += 4) { d[k] = 4 * Math.abs(d[k] - tmp[k]); d[k + 1] = 4 * Math.abs(d[k + 1] - tmp[k + 1]); d[k + 2] = 4 * Math.abs(d[k + 2] - tmp[k + 2]); }
+        legend = '|当前 − A| × 4（' + viewName(st.view) + '）';
+      }
+    }
+    offx.putImageData(buf, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(off, 0, 0, cw, ch);
+    if (A && st.ab === 'split') {
+      var xl = st.split * cw;
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2 * dpr; ctx.beginPath(); ctx.moveTo(xl, 0); ctx.lineTo(xl, ch); ctx.stroke();
+      ctx.fillStyle = 'rgba(20,24,29,0.65)'; ctx.font = (11 * dpr) + 'px ' + FONT;
+      ctx.fillRect(xl - 26 * dpr, ch - 22 * dpr, 22 * dpr, 16 * dpr); ctx.fillRect(xl + 4 * dpr, ch - 22 * dpr, 34 * dpr, 16 * dpr);
+      ctx.fillStyle = '#fff'; ctx.fillText('A', xl - 19 * dpr, ch - 10 * dpr); ctx.fillText('当前', xl + 8 * dpr, ch - 10 * dpr);
+    }
+    if (st.view === 'height') drawProfile(cw, ch);
+    // indenter centre marker
+    var fovW = P.sensor.fovW, fovH = fovW * 0.75, sx = (st.x / fovW + 0.5) * cw, sy = (st.y / fovH + 0.5) * ch;
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath(); ctx.moveTo(sx - 6 * dpr, sy); ctx.lineTo(sx + 6 * dpr, sy); ctx.moveTo(sx, sy - 6 * dpr); ctx.lineTo(sx, sy + 6 * dpr); ctx.stroke();
+    $('#legend').textContent = legend;
+    $('#hud').textContent = viewName(st.view) + ' · ' + W + '×' + H + ' · ' + (fovW / W * 1000).toFixed(0) + ' µm/px';
+  }
+  function viewName(v) { return { cam: '相机图像', diff: '差分', height: '高度', normal: '法向', pressure: '压力' }[v]; }
+  function drawProfile(cw, ch) {
+    var fovW = P.sensor.fovW, fovH = fovW * 0.75, row = GS.clamp(Math.round((st.y / fovH + 0.5) * H - 0.5), 0, H - 1);
+    var yl = (row + 0.5) / H * ch, bh = Math.round(ch * 0.3), top = row < H / 2 ? ch - bh : 0;
+    ctx.setLineDash([5 * dpr, 4 * dpr]); ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.2 * dpr;
+    ctx.beginPath(); ctx.moveTo(0, yl); ctx.lineTo(cw, yl); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,255,255,0.93)'; ctx.fillRect(0, top, cw, bh);
+    var mx = 0.05, mn = 0, i, v;
+    for (i = 0; i < W; i++) { v = sim.HU[row * W + i]; if (v > mx) mx = v; if (v < mn) mn = v; }
+    // indenter profile (gel grid row, same camera row when no parallax)
+    var Wg = sim.Wg, m = sim.m, ind = [];
+    for (i = 0; i < W; i++) { var s = sim.Sf[(row + m) * Wg + i + m]; ind.push(s > -10 ? s : null); if (s > mx && s < 10) mx = s; }
+    var lo = Math.min(mn, -0.05 * mx) - 0.02 * mx, hi = mx * 1.05, pad = 8 * dpr, y0 = top + 18 * dpr, y1 = top + bh - pad;
+    function Y(val) { return y1 - (val - lo) / (hi - lo) * (y1 - y0); }
+    ctx.strokeStyle = 'rgba(102,113,125,0.4)'; ctx.lineWidth = dpr; ctx.beginPath(); ctx.moveTo(0, Y(0)); ctx.lineTo(cw, Y(0)); ctx.stroke();
+    ctx.strokeStyle = '#c0612b'; ctx.lineWidth = 1.6 * dpr; ctx.setLineDash([5 * dpr, 3 * dpr]); ctx.beginPath();
+    var started = false;
+    for (i = 0; i < W; i++) { if (ind[i] === null || ind[i] < lo) { started = false; continue; } var X = (i + 0.5) / W * cw; if (!started) { ctx.moveTo(X, Y(ind[i])); started = true; } else ctx.lineTo(X, Y(ind[i])); }
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = '#1f2a37'; ctx.lineWidth = 1.8 * dpr; ctx.beginPath();
+    for (i = 0; i < W; i++) { var X2 = (i + 0.5) / W * cw, Y2 = Y(sim.HU[row * W + i]); if (i) ctx.lineTo(X2, Y2); else ctx.moveTo(X2, Y2); }
+    ctx.stroke();
+    ctx.font = '600 ' + (11 * dpr) + 'px ' + FONT; ctx.fillStyle = '#66717d';
+    ctx.fillText('剖面（朝相机为正）：— 胶体表面   - - 压头表面（理想模型 = max(0, 压头)）', pad, top + 13 * dpr);
+  }
+
+  /* ---------- readouts ---------- */
+  var ro = $('#ro');
+  var RO = [['F', '法向力'], ['Ft', '切向力 / 扭矩'], ['state', '状态'], ['A', '接触面积'], ['umax', '最大压入'], ['umin', '周围鼓起'], ['sol', '求解 迭代/残差'], ['t', '用时 力学/光照/相机'], ['fps', '帧率']];
+  RO.forEach(function (r) { var d = el('div'); d.appendChild(el('dt', null, r[1])); var dd = el('dd', { id: 'ro-' + r[0] }, '–'); d.appendChild(dd); ro.appendChild(d); });
+  var lastRO = 0;
+  function readouts() {
+    var now = performance.now(); if (now - lastRO < 120) return; lastRO = now;
+    var s = sim.gel.stats, mech = P.f2.on, mn = 0, mx = 0;
+    for (var i = 0; i < sim.HU.length; i++) { if (sim.HU[i] < mn) mn = sim.HU[i]; if (sim.HU[i] > mx) mx = sim.HU[i]; }
+    $('#ro-F').textContent = mech ? s.F.toFixed(3) + ' N' + (P.f2.hyper ? ' *' : '') : '— (②关)';
+    var area = 0; for (i = 0; i < sim.HM.length; i++) area += sim.HM[i];
+    var dp = P.sensor.fovW / W;
+    $('#ro-A').textContent = (area * dp * dp).toFixed(1) + ' mm²';
+    $('#ro-umax').textContent = mx.toFixed(3) + ' mm';
+    $('#ro-umin').textContent = mn.toFixed(3) + ' mm';
+    $('#ro-sol').textContent = mech ? s.iters + ' / ' + (s.err ? s.err.toExponential(1) : '0') : '—';
+    $('#ro-t').textContent = timing.geom.toFixed(0) + ' / ' + timing.light.toFixed(0) + ' / ' + (timing.proj + timing.cam).toFixed(0) + ' ms';
+    $('#ro-fps').textContent = fps ? fps.toFixed(0) + ' fps' : '–';
+    var on6 = P.f6.on && P.f2.on;
+    $('#ro-Ft').textContent = on6 ? shearOut.Ft.toFixed(2) + ' N / ' + shearOut.T.toFixed(2) + ' N·mm' : '— (⑥关)';
+    $('#ro-state').textContent = !(st.d > 0.01) ? '未接触' : (on6 ? (shearOut.slip ? '滑动' : '粘着') : '接触');
+    $('#ro-state').style.color = shearOut.slip ? '#b4530f' : '';
+  }
+
+  /* ---------- interaction ---------- */
+  var activeId = null;
+  function toMM(e) { var r = cv.getBoundingClientRect(), fovW = P.sensor.fovW, fovH = fovW * 0.75;
+    return { x: GS.clamp(((e.clientX - r.left) / r.width - 0.5) * fovW, -fovW / 2 - 2, fovW / 2 + 2), y: GS.clamp(((e.clientY - r.top) / r.height - 0.5) * fovH, -fovH / 2 - 2, fovH / 2 + 2) }; }
+  cv.addEventListener('pointerdown', function (e) {
+    if (activeId !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    activeId = e.pointerId; try { cv.setPointerCapture(e.pointerId); } catch (er) { /* ignore */ }
+    var p = toMM(e);
+    if (Math.hypot(p.x - st.x, p.y - st.y) > 1.0 && st.d > 0) st.d = 0;   // re-press at a new spot
+    var jump = Math.hypot(p.x - st.x, p.y - st.y) > 1.0 || st.d === 0;
+    st.x = p.x; st.y = p.y; st.pressed = true; st.dCmd = P.indenter.depth;
+    if (jump) { st.ax = st.x; st.ay = st.y; st.rotA = P.indenter.rot; }
+    if (P.f2.control === 'force') st.dCmd = Math.max(st.dCmd, 0.2);
+    e.preventDefault(); request();
+  });
+  cv.addEventListener('pointermove', function (e) { if (e.pointerId !== activeId) return; var p = toMM(e); st.x = p.x; st.y = p.y; request(); });
+  function release(e) { if (e.pointerId !== activeId) return; activeId = null; st.pressed = false; st.holding = $('#hold').checked; request(); }
+  cv.addEventListener('pointerup', release); cv.addEventListener('pointercancel', release);
+  cv.addEventListener('wheel', function (e) {
+    if (!(st.pressed || st.holding) || P.indenter.shape === 'sphere') return;
+    e.preventDefault(); P.indenter.rot = ((P.indenter.rot + (e.deltaY > 0 ? 3 : -3) + 540) % 360) - 180; refreshers.forEach(function (f) { f(); }); geomChanged();
+  }, { passive: false });
+  function lift() { st.holding = false; st.pressed = false; request(); }
+  $('#lift').addEventListener('click', lift);
+  $('#hold').addEventListener('change', function () { if (!$('#hold').checked && !st.pressed) lift(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.target && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+    if (e.key === 'Escape') lift();
+    else if (e.key === 'q' || e.key === 'Q' || e.key === 'e' || e.key === 'E') { P.indenter.rot = ((P.indenter.rot + (/e/i.test(e.key) ? 5 : -5) + 540) % 360) - 180; refreshers.forEach(function (f) { f(); }); geomChanged(); }
+  });
+  Array.prototype.slice.call(document.querySelectorAll('.tab')).forEach(function (b, _, all) {
+    b.addEventListener('click', function () { st.view = b.dataset.view; all.forEach(function (o) { o.setAttribute('aria-selected', String(o === b)); }); drawDirty = true; draw(); });
+  });
+  $('#snapA').addEventListener('click', function () { A = snapshot(); $('#aInfo').textContent = 'A 已存（' + new Date().toLocaleTimeString() + '）'; if (st.ab === 'off') setAB('split'); draw(); });
+  function setAB(m) { st.ab = m; Array.prototype.forEach.call(document.querySelectorAll('#abmode button'), function (o) { o.setAttribute('aria-pressed', String(o.dataset.ab === m)); }); $('#split').disabled = m !== 'split'; draw(); }
+  Array.prototype.forEach.call(document.querySelectorAll('#abmode button'), function (b) { b.addEventListener('click', function () { setAB(b.dataset.ab); }); });
+  $('#split').addEventListener('input', function () { st.split = parseFloat($('#split').value); draw(); });
+  if (window.ResizeObserver) new ResizeObserver(function () { drawDirty = true; request(); }).observe(wrap);
+
+  /* =====================================================================
+     Export
+     ===================================================================== */
+  var README = [
+    'GelSight 类视触觉传感器仿真 — 导出数据说明',
+    '',
+    '坐标约定：x 向右（图像列），y 向下（图像行），z 从涂层指向相机。',
+    '高度 u：涂层朝相机方向的位移（mm），压入为正、周围鼓起为负。',
+    '所有真值图都与相机像素逐点对齐：开启透视/折射视差时，是"该像素看到的表面点"的值。',
+    '  开启视差时 normal / gradient 是该点的真实表面法向 / 梯度；对重采样后的 height 做 np.gradient 会在视差大处略有出入，',
+    '  训练 LUT 替代网络时请以 normal.npy / gradient.npy 为准。',
+    '',
+    '每个样本：',
+    '  *_image.png     8 位 RGB 仿真相机图像（PNG 含 alpha=255，读入后取 RGB）',
+    '  *_height.npy    float32 (H, W)，mm',
+    '  *_normal.npy    float32/float16 (H, W, 3)，单位法向 n ∝ (−∂u/∂x, −∂u/∂y, 1)',
+    '  *_gradient.npy  float32/float16 (H, W, 2)，(∂u/∂x, ∂u/∂y)，无量纲（可选）',
+    '  *_mask.png      接触区（胶面与压头表面距离 < 10 µm）0/255',
+    '  *_pressure.npy  float32 (H, W)，接触压力 kPa（求解网格最近邻，可选）',
+    '  *_linear.npy    float32 (H, W, 3)，进入相机前的线性辐亮度（任意单位，可选）',
+    'background.png    同一设置下无接触的背景帧（含独立噪声）；lookup table / 网络通常输入 image − background',
+    'background_clean.png  同上但无噪声（相当于多帧平均的背景）',
+    'config.json       {"params": 全部仿真参数, ...}（导出时的状态）',
+    'meta*.jsonl       每行一个样本：压头形状、位置、压深、旋转、法向力、接触面积、噪声种子（ZIP 分包时为 meta_partNNN.jsonl）',
+    '',
+    '像素尺寸 = 视场宽度 / 图像宽度（见 config.json: sensor.fovW）。',
+    'Python 读取示例见 load_example.py。'
+  ].join('\n');
+  var PY = [
+    'import json, numpy as np',
+    'from PIL import Image',
+    '',
+    'def load(prefix, folder="."):',
+    '    img = np.asarray(Image.open(f"{folder}/{prefix}_image.png").convert("RGB"))',
+    '    h = np.load(f"{folder}/{prefix}_height.npy")            # (H, W) mm',
+    '    n = np.load(f"{folder}/{prefix}_normal.npy").astype(np.float32)   # (H, W, 3)',
+    '    return img, h, n',
+    '',
+    'bg = np.asarray(Image.open("background.png").convert("RGB")).astype(np.float32)',
+    'cfg = json.load(open("config.json"))["params"]',
+    'import glob',
+    'meta = [json.loads(l) for f in sorted(glob.glob("meta*.jsonl")) for l in open(f)]',
+    'img, h, n = load(meta[0]["id"])',
+    'diff = img.astype(np.float32) - bg                        # LUT / 网络输入',
+    'grad = -n[..., :2] / n[..., 2:3]                          # (du/dx, du/dy)',
+    'px = cfg["sensor"]["fovW"] / img.shape[1]                 # mm / pixel',
+    'gy, gx = np.gradient(h, px)                               # 与 grad 一致性检查',
+    'print(img.shape, h.min(), h.max(), np.abs(gx - grad[..., 0]).mean())'
+  ].join('\n');
+  function pngBytes(rgba, w, h) {
+    return new Promise(function (res) {
+      var c = document.createElement('canvas'); c.width = w; c.height = h;
+      var x = c.getContext('2d'), id = x.createImageData(w, h); id.data.set(rgba); x.putImageData(id, 0, 0);
+      c.toBlob(function (b) { b.arrayBuffer().then(function (ab) { res(new Uint8Array(ab)); }); }, 'image/png');
+    });
+  }
+  function maskRGBA(mk, n) { var o = new Uint8ClampedArray(4 * n); for (var i = 0; i < n; i++) { var v = mk[i] ? 255 : 0; o[4 * i] = o[4 * i + 1] = o[4 * i + 2] = v; o[4 * i + 3] = 255; } return o; }
+  function interleave(planar, n) { var o = new Float32Array(3 * n); for (var i = 0; i < n; i++) { o[3 * i] = planar[i]; o[3 * i + 1] = planar[n + i]; o[3 * i + 2] = planar[2 * n + i]; } return o; }
+  function gradients(HN, n) { var o = new Float32Array(2 * n); for (var i = 0; i < n; i++) { var nz = Math.max(HN[3 * i + 2], 1e-6); o[2 * i] = -HN[3 * i] / nz; o[2 * i + 1] = -HN[3 * i + 1] / nz; } return o; }
+  function download(blob, name) { var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 4000); }
+  async function sampleFiles(S, prefix, w, h, opt) {
+    var n = w * h, f = [], dt = opt.f16 ? '<f2' : '<f4';
+    f.push([prefix + '_image.png', await pngBytes(S.img, w, h)]);
+    f.push([prefix + '_height.npy', GS.npy(S.HU, [h, w])]);
+    if (opt.normal) f.push([prefix + '_normal.npy', GS.npy(S.HN, [h, w, 3], dt)]);
+    if (opt.grad) f.push([prefix + '_gradient.npy', GS.npy(gradients(S.HN, n), [h, w, 2], dt)]);
+    if (opt.mask) f.push([prefix + '_mask.png', await pngBytes(maskRGBA(S.HM, n), w, h)]);
+    if (opt.pressure) f.push([prefix + '_pressure.npy', GS.npy(S.HP, [h, w])]);
+    if (opt.linear) f.push([prefix + '_linear.npy', GS.npy(interleave(S.IL, n), [h, w, 3])]);
+    return f;
+  }
+  function exportOpts() {
+    return { normal: $('#xNormal').checked, grad: $('#xGrad').checked, mask: $('#xMask').checked, pressure: $('#xPress').checked,
+      linear: $('#xLinear').checked, f16: $('#xF16').checked };
+  }
+  function stamp() { var d = new Date(); function p(v) { return (v < 10 ? '0' : '') + v; } return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()); }
+  async function exportFrame() {
+    var z = new GS.ZipWriter(), opt = exportOpts();
+    var files = await sampleFiles(sim, 'frame', W, H, opt);
+    files.forEach(function (f) { z.add(f[0], f[1]); });
+    z.add('background.png', await pngBytes(bgSim.img, W, H));
+    var th = P.indenter.rot;
+    z.add('config.json', JSON.stringify({ params: P, exposure_k: expo.k, width: W, height: H, generator: 'gelsight-sim stage ' + STAGE }, null, 1));
+    z.add('meta.jsonl', JSON.stringify({ id: 'frame', shape: P.indenter.shape, ballR: P.indenter.ballR, text: P.indenter.text, x_mm: st.x, y_mm: st.y,
+      depth_mm: st.d, rot_deg: th, force_N: P.f2.on ? sim.gel.stats.F : null, solver_err: sim.gel.stats.err, seed: frameSeed, width: W, height: H }) + '\n');
+    z.add('README.txt', README); z.add('load_example.py', PY);
+    download(new Blob(z.finish(), { type: 'application/zip' }), 'gelsight_frame_' + stamp() + '.zip');
+  }
+
+  /* ---------- batch dataset ---------- */
+  var batch = { running: false, cancel: false };
+  function buildExport() {
+    var sec = el('section', { class: 'factor exp' });
+    sec.appendChild(el('header', null, '<h2>导出<small>高度图 / 法向图 与仿真图像成对保存</small></h2>'));
+    var body = el('div', { class: 'body' });
+    body.innerHTML =
+      '<fieldset><legend>内容</legend><div class="grid2">' +
+      '<label><input type="checkbox" id="xNormal" checked> 法向 normal.npy</label>' +
+      '<label><input type="checkbox" id="xGrad" checked> 梯度 gradient.npy</label>' +
+      '<label><input type="checkbox" id="xMask" checked> 接触掩膜 mask.png</label>' +
+      '<label><input type="checkbox" id="xPress"> 压力 pressure.npy</label>' +
+      '<label><input type="checkbox" id="xLinear"> 线性辐亮度 linear.npy</label>' +
+      '<label><input type="checkbox" id="xF16"> 法向/梯度用 float16</label>' +
+      '</div><div class="row"><button class="btn" id="xFrame">导出当前帧 (.zip)</button><span class="msg">高度图始终为 float32（mm）。</span></div></fieldset>' +
+      '<fieldset><legend>批量生成数据集</legend><div class="grid2">' +
+      '<label>样本数 <input type="number" id="bN" value="200" min="1" max="100000"></label>' +
+      '<label>分辨率 <select id="bRes"><option value="320">320×240</option><option value="640">640×480</option></select></label>' +
+      '<label>求解网格 <select id="bGrid"><option value="0.3">0.30 mm（快）</option><option value="0.15">0.15 mm（精，约慢 8 倍）</option></select></label>' +
+      '<label>随机种子 <input type="number" id="bSeed" value="1"></label>' +
+      '<label>压深 <input type="number" id="bD0" value="0.2" step="0.05"> – <input type="number" id="bD1" value="1.5" step="0.05"> mm</label>' +
+      '<label>球半径 <input type="number" id="bR0" value="2" step="0.5"> – <input type="number" id="bR1" value="6" step="0.5"> mm</label>' +
+      '<label>位置内缩 <input type="number" id="bMargin" value="3" step="0.5"> mm</label>' +
+      '<label>每个 ZIP 样本数 <input type="number" id="bChunk" value="250" min="10"></label>' +
+      '<label title="需开启 ⑥；方向随机，幅值均匀分布，并受摩擦极限约束">切向位移 ≤ <input type="number" id="bShear" value="0" step="0.1" min="0"> mm</label>' +
+      '<label style="grid-column:1/-1">形状 ' +
+        '<label><input type="checkbox" class="bShape" value="sphere" checked>球</label> <label><input type="checkbox" class="bShape" value="cylinder" checked>圆柱</label> ' +
+        '<label><input type="checkbox" class="bShape" value="cube" checked>方块</label> <label><input type="checkbox" class="bShape" value="screw" checked>螺丝头</label> ' +
+        '<label><input type="checkbox" class="bShape" value="letter" checked>字母</label></label>' +
+      '<label style="grid-column:1/-1">字母池 <input type="text" class="wide" id="bLetters" value="ABCDEFGHJKLMNPRSTUVWXYZ23456789"></label>' +
+      '</div>' +
+      '<div class="row"><button class="btn primary" id="bFolder">写入文件夹（Chrome / Edge）</button><button class="btn" id="bZip">下载 ZIP</button><button class="btn" id="bCancel" disabled>取消</button></div>' +
+      '<progress id="bProg" max="1" value="0"></progress><div class="msg" id="bMsg">每个样本：随机形状、位置、压深、旋转；冷启动求解到收敛（残差 &lt; 1e-5）；粘弹性在批量中关闭（取弹性平衡态）。参数用当前面板设置。</div></fieldset>';
+    sec.appendChild(body);
+    setTimeout(function () {
+      $('#xFrame').addEventListener('click', function () { exportFrame().catch(function (e) { alert('导出失败：' + e); }); });
+      $('#bFolder').addEventListener('click', function () { startBatch('folder'); });
+      $('#bZip').addEventListener('click', function () { startBatch('zip'); });
+      $('#bCancel').addEventListener('click', function () { batch.cancel = true; });
+      if (!window.showDirectoryPicker) { $('#bFolder').disabled = true; $('#bFolder').title = '此浏览器不支持文件夹写入，请用 ZIP'; }
+    }, 0);
+    return sec;
+  }
+  function FolderSink(dir) { this.dir = dir; }
+  FolderSink.prototype.add = async function (name, data) { var fh = await this.dir.getFileHandle(name, { create: true }); var w = await fh.createWritable(); await w.write(data); await w.close(); };
+  FolderSink.prototype.endChunk = async function () {};
+  FolderSink.prototype.finish = async function () {};
+  function ZipSink(base) { this.base = base; this.part = 1; this.z = new GS.ZipWriter(); this.common = []; }
+  ZipSink.prototype.add = async function (name, data) { this.z.add(name, data); };
+  ZipSink.prototype.addCommon = function (name, data) { this.common.push([name, data]); this.z.add(name, data); };
+  ZipSink.prototype.endChunk = async function () {
+    download(new Blob(this.z.finish(), { type: 'application/zip' }), this.base + '_part' + String(this.part).padStart(3, '0') + '.zip');
+    this.part++; this.z = new GS.ZipWriter(); var z = this.z; this.common.forEach(function (c) { z.add(c[0], c[1]); });
+    await new Promise(function (r) { setTimeout(r, 300); });
+  };
+  ZipSink.prototype.finish = async function () { if (this.z.count > this.common.length) await this.endChunk(); };
+  async function startBatch(mode) {
+    if (batch.running) return;
+    var N = Math.max(1, parseInt($('#bN').value, 10) || 1), res = parseInt($('#bRes').value, 10), w = res, h = res * 3 / 4;
+    var shapes = Array.prototype.filter.call(document.querySelectorAll('.bShape'), function (c) { return c.checked; }).map(function (c) { return c.value; });
+    if (!shapes.length) { $('#bMsg').textContent = '至少选一种形状'; return; }
+    var base = 'gelsight_dataset_' + stamp(), sink;
+    try {
+      if (mode === 'folder') { var root = await window.showDirectoryPicker({ mode: 'readwrite' }); sink = new FolderSink(await root.getDirectoryHandle(base, { create: true })); }
+      else sink = new ZipSink(base);
+    } catch (e) { $('#bMsg').textContent = '已取消：' + e.message; return; }
+    var cfg = { N: N, w: w, h: h, grid: parseFloat($('#bGrid').value), seed: parseInt($('#bSeed').value, 10) || 1,
+      d0: parseFloat($('#bD0').value), d1: parseFloat($('#bD1').value), r0: parseFloat($('#bR0').value), r1: parseFloat($('#bR1').value),
+      margin: parseFloat($('#bMargin').value), chunk: Math.max(10, parseInt($('#bChunk').value, 10) || 250), shapes: shapes,
+      letters: $('#bLetters').value || 'R', shear: parseFloat($('#bShear').value) || 0, opt: exportOpts() };
+    batch.running = true; batch.cancel = false;
+    $('#bCancel').disabled = false; $('#bFolder').disabled = $('#bZip').disabled = true;
+    try { await runBatch(cfg, sink, base); }
+    catch (e) { $('#bMsg').className = 'msg err'; $('#bMsg').textContent = '出错：' + e; console.error(e); }
+    batch.running = false; $('#bCancel').disabled = true; $('#bFolder').disabled = !window.showDirectoryPicker; $('#bZip').disabled = false;
+  }
+  async function runBatch(cfg, sink, base) {
+    var Pb = clone(P); Pb.f2.visco = false; Pb.f2.grid = cfg.grid; Pb.f2.control = 'depth';
+    var S = new GS.Sim(cfg.w, cfg.h), B = new GS.Sim(cfg.w, cfg.h), msg = $('#bMsg'), prog = $('#bProg');
+    msg.className = 'msg'; msg.textContent = '渲染背景…';
+    B.flat(); var ms = B.render(Pb, { measure: true });
+    var ex = { k: 0.85 / Math.max(ms.p99, 1e-12), wb: [ms.mean[1] / Math.max(ms.mean[0], 1e-12), 1, ms.mean[1] / Math.max(ms.mean[2], 1e-12)] };
+    var Pc = clone(Pb); Pc.f5.noise = false; B.render(Pc, { expo: ex, seed: 1 });
+    var bgClean = await pngBytes(B.img, cfg.w, cfg.h);
+    B.render(Pb, { expo: ex, seed: cfg.seed * 7919 + 13 });
+    var common = [['config.json', JSON.stringify({ params: Pb, batch: cfg, exposure_k: ex.k, generator: 'gelsight-sim stage ' + STAGE }, null, 1)],
+      ['README.txt', README], ['load_example.py', PY], ['background.png', await pngBytes(B.img, cfg.w, cfg.h)], ['background_clean.png', bgClean]];
+    for (var c = 0; c < common.length; c++) { if (sink.addCommon) sink.addCommon(common[c][0], common[c][1]); else await sink.add(common[c][0], common[c][1]); }
+    var metaLines = [], t0 = performance.now(), fovW = Pb.sensor.fovW, fovH = fovW * 0.75, inChunk = 0;
+    for (var i = 0; i < cfg.N; i++) {
+      if (batch.cancel) { msg.textContent = '已取消（完成 ' + i + ' 个）'; break; }
+      var rng = GS.mulberry32(cfg.seed * 1000003 + i * 7919);
+      var shape = cfg.shapes[Math.floor(rng() * cfg.shapes.length) % cfg.shapes.length];
+      var ballR = cfg.r0 + (cfg.r1 - cfg.r0) * rng(), depth = cfg.d0 + (cfg.d1 - cfg.d0) * rng();
+      var text = cfg.letters.charAt(Math.floor(rng() * cfg.letters.length)) || 'R';
+      var x = (rng() - 0.5) * Math.max(0, fovW - 2 * cfg.margin), y = (rng() - 0.5) * Math.max(0, fovH - 2 * cfg.margin);
+      var rot = shape === 'sphere' ? 0 : rng() * 360 - 180, th = rot * Math.PI / 180;
+      S.ind.build(shape, ballR, text); S.gel.reset();
+      var pose = { x: x, y: y, d: depth, c: Math.cos(th), s: Math.sin(th) };
+      var stt = S.geometry(pose, Pb, 0, 400, 1e-5), shx = 0, shy = 0;
+      if (cfg.shear > 0 && Pb.f6.on && Pb.f2.on && stt) {
+        var G = Pb.f2.E / (2 * (1 + Pb.f2.nu)), si = S.shearInfo || { Aeff: 0 };
+        S.geometry(pose, Pb, 0, 1, 1e-5, null, { dx: 0, dy: 0, phi: 0, cx: x, cy: y });   // footprint only
+        si = S.shearInfo || si;
+        var Dm = Math.min(cfg.shear * rng(), si.Aeff > 0 ? Pb.f6.mu * stt.F * Pb.sensor.tGel / (G * si.Aeff) : 0, 0.5 * Pb.sensor.tGel), ang = rng() * 2 * Math.PI;
+        shx = Dm * Math.cos(ang); shy = Dm * Math.sin(ang);
+        var mp = { x: x - shx, y: y - shy, d: depth, c: pose.c, s: pose.s };
+        S.gel.reset();
+        stt = S.geometry(pose, Pb, 0, 400, 1e-5, mp, { dx: shx, dy: shy, phi: 0, cx: mp.x, cy: mp.y });
+      }
+      var seed = cfg.seed * 100003 + i;
+      S.render(Pb, { expo: ex, seed: seed });
+      var id = String(i).padStart(5, '0');
+      var files = await sampleFiles(S, id, cfg.w, cfg.h, cfg.opt);
+      for (var f = 0; f < files.length; f++) await sink.add(files[f][0], files[f][1]);
+      var area = 0; for (var q = 0; q < S.HM.length; q++) area += S.HM[q];
+      var line = JSON.stringify({ id: id, shape: shape, ballR: shape === 'sphere' ? +ballR.toFixed(4) : null, text: shape === 'letter' ? text : null,
+        x_mm: +x.toFixed(4), y_mm: +y.toFixed(4), depth_mm: +depth.toFixed(4), rot_deg: +rot.toFixed(3), shear_mm: [+shx.toFixed(4), +shy.toFixed(4)],
+        force_N: Pb.f2.on && stt ? +stt.F.toFixed(5) : null, contact_area_mm2: +(area * Math.pow(fovW / cfg.w, 2)).toFixed(4),
+        solver_err: stt ? stt.err : null, seed: seed });
+      metaLines.push(line); inChunk++;
+      if (sink instanceof ZipSink && inChunk >= cfg.chunk) { await sink.add('meta_part' + String(sink.part).padStart(3, '0') + '.jsonl', metaLines.join('\n') + '\n'); await sink.endChunk(); metaLines = []; inChunk = 0; }
+      prog.value = (i + 1) / cfg.N;
+      var el_ = (performance.now() - t0) / 1000, eta = el_ / (i + 1) * (cfg.N - i - 1);
+      msg.textContent = '第 ' + (i + 1) + ' / ' + cfg.N + ' 个 · 每个 ' + (el_ / (i + 1)).toFixed(2) + ' s · 剩余约 ' + Math.ceil(eta) + ' s';
+      await new Promise(function (r) { setTimeout(r, 0); });
+    }
+    if (sink instanceof ZipSink) { if (metaLines.length) await sink.add('meta_part' + String(sink.part).padStart(3, '0') + '.jsonl', metaLines.join('\n') + '\n'); await sink.finish(); }
+    else { await sink.add('meta.jsonl', metaLines.join('\n') + '\n'); }
+    if (!batch.cancel) msg.textContent = '完成：' + cfg.N + ' 个样本，用时 ' + ((performance.now() - t0) / 1000).toFixed(0) + ' s' + (sink instanceof FolderSink ? '（文件夹 ' + base + '）' : '');
+  }
+
+  /* ---------- start ---------- */
+  buildChips(); buildPanel(); buildIndenterKV(); lastCtl = P.f2.on + P.f2.control + P.indenter.shape;
+  refreshers.forEach(function (f) { f(); });
+  st.holding = true;
+  window.__gs = { P: function () { return P; }, sim: sim, bg: bgSim, st: st, request: request, onParam: onParam, setView: function (v) { var b = document.querySelector('.tab[data-view="' + v + '"]'); if (b) b.click(); },
+    exportFrame: exportFrame, snapA: function () { $('#snapA').click(); }, setAB: setAB, refresh: function () { refreshers.forEach(function (f) { f(); }); } };
+  request();
+})();
+
+</script>
+</body>
+</html>
