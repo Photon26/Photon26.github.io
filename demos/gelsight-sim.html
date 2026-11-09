@@ -714,19 +714,50 @@ var GS = (function () {
      continuity), rises/sinks by  du_z = (t/2) div u_t  (pile-up ahead, sink behind).
      The stick limit |D| <= mu F / K_t, K_t = G A_eff / t, is applied by the caller.
      ===================================================================== */
+  function erfc(x) {                     /* Abramowitz-Stegun 7.1.26, |err| < 1.5e-7, x >= 0 */
+    var q = 1 / (1 + 0.3275911 * x);
+    return q * (0.254829592 + q * (-0.284496736 + q * (1.421413741 + q * (-1.453152027 + q * 1.061405429)))) * Math.exp(-x * x);
+  }
+  /* exact squared Euclidean distance (pixels^2) to the nearest nonzero mask pixel (Felzenszwalb-Huttenlocher) */
+  function edt1(f, n, d, v, z) {
+    var k = 0, q, s, r; v[0] = 0; z[0] = -1e30; z[1] = 1e30;
+    for (q = 1; q < n; q++) {
+      r = v[k]; s = ((f[q] + q * q) - (f[r] + r * r)) / (2 * q - 2 * r);
+      while (s <= z[k]) { k--; r = v[k]; s = ((f[q] + q * q) - (f[r] + r * r)) / (2 * q - 2 * r); }
+      k++; v[k] = q; z[k] = s; z[k + 1] = 1e30;
+    }
+    for (k = 0, q = 0; q < n; q++) { while (z[k + 1] < q) k++; var dq = q - v[k]; d[q] = dq * dq + f[v[k]]; }
+  }
+  function edt2(M, W, H, cache) {
+    var N = W * H, L = Math.max(W, H), i, j;
+    if (!cache._edt || cache._edt.D.length !== N) cache._edt = { D: new Float64Array(N), f: new Float64Array(L), d: new Float64Array(L), v: new Int32Array(L), z: new Float64Array(L + 1) };
+    var c = cache._edt, D = c.D, f = c.f, d = c.d, BIGD = 1e20;
+    for (i = 0; i < W; i++) {
+      for (j = 0; j < H; j++) f[j] = M[j * W + i] ? 0 : BIGD;
+      edt1(f, H, d, c.v, c.z);
+      for (j = 0; j < H; j++) D[j * W + i] = d[j];
+    }
+    for (j = 0; j < H; j++) {
+      var row = j * W;
+      for (i = 0; i < W; i++) f[i] = D[row + i];
+      edt1(f, W, d, c.v, c.z);
+      for (i = 0; i < W; i++) D[row + i] = d[i];
+    }
+    return D;
+  }
   Sim.prototype.shearWarp = function (P, sh, dp, fovW, fovH) {
     var Wg = this.Wg, Hg = this.Hg, Ng = Wg * Hg, m = this.m, t = P.sensor.tGel, i, j, k;
     var U = this.U, MK = this.MK, PR = this.PR, Sf = this.Sf;
     if (!this.WX || this.WX.length !== Ng) { this.WX = new Float32Array(Ng); this.WY = new Float32Array(Ng); this.WW = new Float32Array(Ng); }
-    var w = this.WW, ux = this.WX, uy = this.WY, tmp = this.T1, wmax = 0;
-    for (k = 0; k < Ng; k++) w[k] = MK[k];
-    blur(w, w, Wg, Hg, 1.0 * t / dp, tmp);
-    for (k = 0; k < Ng; k++) if (w[k] > wmax) wmax = w[k];
+    var w = this.WW, ux = this.WX, uy = this.WY, wmax = 0;
+    for (k = 0; k < Ng; k++) if (MK[k]) { wmax = 1; break; }
     var Aeff = 0, Ir2 = 0;
-    if (wmax <= 1e-6) { this.shearInfo = { Aeff: 0, Ir2: 0 }; return; }
-    // rigid inside the stick zone (w = 1), smooth decay outside
-    for (k = 0; k < Ng; k++) { var wv = MK[k] ? 1 : w[k] / (0.5 * wmax); w[k] = wv > 1 ? 1 : wv; }
-    wmax = 1;
+    if (!wmax) { this.shearInfo = { Aeff: 0, Ir2: 0 }; return; }
+    /* rigid inside the stick zone (w = 1); outside, decay with the distance d to the
+       nearest contact point: w = erfc(d / (sqrt2 t)). Follows the contact outline and keeps
+       |grad w| <= 0.8/t, so the warp stays invertible for |D| <= t/2. */
+    var d2 = edt2(MK, Wg, Hg, this), sc = dp / (Math.SQRT2 * t), cut = (3 / sc) * (3 / sc);
+    for (k = 0; k < Ng; k++) w[k] = MK[k] ? 1 : (d2[k] >= cut ? 0 : erfc(Math.sqrt(d2[k]) * sc));
     for (j = 0; j < Hg; j++) {
       var Y = (j - m + 0.5) * dp - fovH / 2;
       for (i = 0; i < Wg; i++) {
@@ -747,6 +778,12 @@ var GS = (function () {
         DV[j * Wg + i] = (ux[j * Wg + ip] - ux[j * Wg + im]) / ((ip - im) * dp) + (uy[jp * Wg + i] - uy[jm * Wg + i]) / ((jp - jm) * dp);
       }
     }
+    /* the distance field has creases (medial axis, pixel staircase of the contact edge):
+       smooth the divergence over ~t/6 and keep it zero inside the stick zone */
+    blur(DV, DV, Wg, Hg, Math.max(1, t / (6 * dp)), this.T1);
+    /* the surface stays attached at the stick edge: ramp the pile-up in over ~0.3 t */
+    var rr = 0.3 * t / dp;
+    for (k = 0; k < Ng; k++) DV[k] = MK[k] ? 0 : DV[k] * sstep(0, rr, Math.sqrt(d2[k]));
     // camera pixel x sees material point xm with  xm + u_t(xm) = x  (fixed-point inversion)
     for (j = 0; j < Hg; j++) {
       for (i = 0; i < Wg; i++) {
