@@ -1,36 +1,59 @@
 ---
 permalink: /demo/
 title: "Interactive demo"
-excerpt: "Press a simulated GelSight-type tactile sensor in your browser and see the tactile image, the depth map recovered from it, and the marker displacement field."
+excerpt: "Press a simulated GelSight-type tactile sensor in your browser: a basic version with depth and marker views, and a physics-based version of the colour-only sensor."
 author_profile: true
 ---
 
-<p class="lead">A GelSight-type tactile sensor, simulated in your browser. Press the gel with the mouse or a finger, drag to shear it, and switch views to see what the camera records and what can be recovered from it.</p>
+<p class="lead">A GelSight-type tactile sensor, simulated in your browser. Press the gel with the mouse or a finger and drag to shear it. <b>Basic</b> shows what the camera records and what can be recovered from it; <b>Physics-based</b> models the gel, the light and the camera in more detail.</p>
 
-<iframe id="tactile-demo" class="demo-frame" src="/demos/tactile-sensor-demo.html" title="Interactive simulation of a GelSight-type tactile sensor"></iframe>
-
-<p class="section-note">You can also <a href="/demos/tactile-sensor-demo.html">open the demo in its own window</a>. The real sensor I built is described in <a href="/portfolio/portfolio-1/">Building a GelSight-type tactile sensor</a>.</p>
-
-## Physics-based simulator
-
-<div class="demo-wrap">
-  <a class="demo-card" href="/demos/gelsight-sim.html">
-    <img src="/images/research/physics-sim-thumb.jpg" alt="Simulated camera image of a screw head pressed into a colour-only GelSight-type sensor">
-    <span class="hl-body">
-      <span class="hl-tag">Research tool · English / 中文</span>
-      <span class="demo-title">A more physical simulator, with training-data export</span>
-      <span class="hl-text">A colour-only sensor (no markers) in which each physical effect can be switched on and off and compared: elastic contact in a thin gel layer, coating reflectance and shadows, LED falloff and spectral crosstalk, light trapping and refraction in the gel, and camera noise. It exports images paired with height and normal maps, as training data for a network that replaces the lookup table.</span>
-      <span class="demo-go">Open the simulator &rarr;</span>
-    </span>
-  </a>
+<div class="demo-tabs" role="tablist" aria-label="Demo version">
+  <button type="button" class="demo-tab" role="tab" id="tab-basic" aria-selected="true" aria-controls="tactile-demo" data-frame="tactile-demo">Basic</button>
+  <button type="button" class="demo-tab" role="tab" id="tab-physics" aria-selected="false" aria-controls="physics-demo" data-frame="physics-demo" data-hash="physics">Physics-based</button>
 </div>
+
+<iframe id="tactile-demo" class="demo-frame" role="tabpanel" aria-labelledby="tab-basic" src="/demos/tactile-sensor-demo.html" title="Interactive simulation of a GelSight-type tactile sensor"></iframe>
+
+<iframe id="physics-demo" class="demo-frame" role="tabpanel" aria-labelledby="tab-physics" data-src="/demos/gelsight-sim.html" title="Physics-based simulation of a colour-only GelSight-type tactile sensor" hidden="hidden"></iframe>
+
+<p class="section-note">Open in its own window: <a href="/demos/tactile-sensor-demo.html">basic</a> &middot; <a href="/demos/gelsight-sim.html">physics-based</a>. The real sensor I built is described in <a href="/portfolio/portfolio-1/">Building a GelSight-type tactile sensor</a>.</p>
 
 <script>
   (function () {
-    var frame = document.getElementById('tactile-demo');
+    var tabs = document.querySelectorAll('.demo-tab');
+    var frames = { 'tactile-demo': 'tactile-demo:height', 'physics-demo': 'gelsight-sim:height' };
+    function show(tab) {
+      for (var i = 0; i < tabs.length; i++) {
+        var t = tabs[i], f = document.getElementById(t.getAttribute('data-frame')), on = t === tab;
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.tabIndex = on ? 0 : -1;
+        f.hidden = !on;
+        if (on) {
+          if (!f.getAttribute('src')) { f.setAttribute('src', f.getAttribute('data-src')); }
+        }
+      }
+    }
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].addEventListener('click', function () {
+        show(this);
+        var h = this.getAttribute('data-hash');
+        if (window.history.replaceState) { window.history.replaceState(null, '', h ? '#' + h : location.pathname + location.search); }
+      });
+      tabs[i].addEventListener('keydown', function (e) {
+        if (e.key !== 'ArrowLeft') { if (e.key !== 'ArrowRight') { return; } }
+        var n = this === tabs[0] ? tabs[1] : tabs[0];
+        n.focus(); n.click(); e.preventDefault();
+      });
+    }
+    if (location.hash === '#physics') { show(tabs[1]); }
     window.addEventListener('message', function (e) {
-      if (e.source !== frame.contentWindow || !e.data || e.data.type !== 'tactile-demo:height') { return; }
-      frame.style.height = e.data.height + 'px';
+      if (!e.data) { return; }
+      for (var id in frames) {
+        var f = document.getElementById(id);
+        if (e.source === f.contentWindow) {
+          if (e.data.type === frames[id]) { if (e.data.height > 50) { f.style.height = e.data.height + 'px'; } }
+        }
+      }
     });
   })();
 </script>
